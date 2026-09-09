@@ -67,7 +67,9 @@ export class ClaudeCodeAdapter implements ClaudeSessionAdapter {
     session = this.applyAndEmit(session, "STARTING");
 
     if (input.initialInstruction) {
-      session = this.applyAndEmit(session, "WORKING");
+      const withTask: ClaudeSession = { ...session, currentTask: input.initialInstruction };
+      this.sessions.set(withTask.id, withTask);
+      session = this.applyAndEmit(withTask, "WORKING");
       await this.dispatch(session, input.initialInstruction);
       session = this.requireSession(session.id);
     } else {
@@ -78,7 +80,9 @@ export class ClaudeCodeAdapter implements ClaudeSessionAdapter {
   }
 
   async sendInstruction(sessionId: string, instruction: string): Promise<InstructionResult> {
-    const working = this.applyAndEmit(this.requireSession(sessionId), "WORKING");
+    const withTask: ClaudeSession = { ...this.requireSession(sessionId), currentTask: instruction };
+    this.sessions.set(withTask.id, withTask);
+    const working = this.applyAndEmit(withTask, "WORKING");
     return this.dispatch(working, instruction);
   }
 
@@ -100,6 +104,10 @@ export class ClaudeCodeAdapter implements ClaudeSessionAdapter {
 
   async getStatus(sessionId: string): Promise<SessionStatus> {
     return this.requireSession(sessionId).status;
+  }
+
+  async getSession(sessionId: string): Promise<ClaudeSession> {
+    return this.requireSession(sessionId);
   }
 
   subscribe(sessionId: string, handler: SessionEventHandler): Unsubscribe {
@@ -147,11 +155,17 @@ export class ClaudeCodeAdapter implements ClaudeSessionAdapter {
     // silently clobber a concurrent stop — the state machine can only
     // protect against that if we hand it the real current state.
     const current = this.requireSession(session.id);
-    let withClaudeId = current;
+    const isTerminal = parsed.status === "completed" || parsed.status === "failed";
+    let withClaudeId: ClaudeSession = {
+      ...current,
+      lastOutput: parsed.outputText,
+      lastError: parsed.error ?? null,
+      currentTask: isTerminal ? null : current.currentTask,
+    };
     if (parsed.claudeSessionId && parsed.claudeSessionId !== current.claudeSessionId) {
-      withClaudeId = { ...current, claudeSessionId: parsed.claudeSessionId };
-      this.sessions.set(current.id, withClaudeId);
+      withClaudeId = { ...withClaudeId, claudeSessionId: parsed.claudeSessionId };
     }
+    this.sessions.set(current.id, withClaudeId);
 
     const final = this.applyAndEmit(withClaudeId, INSTRUCTION_OUTCOME_TO_STATUS[parsed.status]);
     if (final.status === "COMPLETED") {

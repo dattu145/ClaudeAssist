@@ -56,7 +56,9 @@ export class FakeClaudeSessionAdapter implements ClaudeSessionAdapter {
     session = this.applyAndEmit(session, "STARTING");
 
     if (input.initialInstruction) {
-      session = this.applyAndEmit(session, "WORKING");
+      const withTask: ClaudeSession = { ...session, currentTask: input.initialInstruction };
+      this.sessions.set(withTask.id, withTask);
+      session = this.applyAndEmit(withTask, "WORKING");
       this.dispatchInstruction(session, input.initialInstruction);
       session = this.requireSession(session.id);
     } else {
@@ -67,7 +69,9 @@ export class FakeClaudeSessionAdapter implements ClaudeSessionAdapter {
   }
 
   async sendInstruction(sessionId: string, instruction: string): Promise<InstructionResult> {
-    const working = this.applyAndEmit(this.requireSession(sessionId), "WORKING");
+    const withTask: ClaudeSession = { ...this.requireSession(sessionId), currentTask: instruction };
+    this.sessions.set(withTask.id, withTask);
+    const working = this.applyAndEmit(withTask, "WORKING");
     return this.dispatchInstruction(working, instruction);
   }
 
@@ -83,6 +87,10 @@ export class FakeClaudeSessionAdapter implements ClaudeSessionAdapter {
 
   async getStatus(sessionId: string): Promise<SessionStatus> {
     return this.requireSession(sessionId).status;
+  }
+
+  async getSession(sessionId: string): Promise<ClaudeSession> {
+    return this.requireSession(sessionId);
   }
 
   subscribe(sessionId: string, handler: SessionEventHandler): Unsubscribe {
@@ -117,7 +125,16 @@ export class FakeClaudeSessionAdapter implements ClaudeSessionAdapter {
     const output = `[fake] handled: ${instruction}`;
     this.emit(session.id, "output", { output });
 
-    const final = this.applyAndEmit(session, INSTRUCTION_OUTCOME_TO_STATUS[outcome]);
+    const isTerminal = outcome === "completed" || outcome === "failed";
+    const updated: ClaudeSession = {
+      ...session,
+      lastOutput: output,
+      lastError: outcome === "failed" ? "fake failure" : null,
+      currentTask: isTerminal ? null : session.currentTask,
+    };
+    this.sessions.set(updated.id, updated);
+
+    const final = this.applyAndEmit(updated, INSTRUCTION_OUTCOME_TO_STATUS[outcome]);
     if (final.status === "COMPLETED") {
       this.emit(final.id, "completed", {});
     } else if (final.status === "FAILED") {

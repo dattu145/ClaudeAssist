@@ -73,5 +73,14 @@ export interface ClaudeSessionAdapter {
   resumeSession(sessionId: string): Promise<ClaudeSession>;
   stopSession(sessionId: string): Promise<void>;
   getStatus(sessionId: string): Promise<SessionStatus>;
+  /**
+   * Added page9: the Session Registry needs the *full* current record
+   * (claudeSessionId, lastOutput, lastActivityAt, ...) after a dispatch to
+   * persist accurately — `getStatus` alone isn't enough, and
+   * `sendInstruction`/`resumeSession`/`stopSession`'s own return values
+   * don't consistently carry it either. Throws SessionNotFoundError for an
+   * unknown id, same as `getStatus`.
+   */
+  getSession(sessionId: string): Promise<ClaudeSession>;
   subscribe(sessionId: string, handler: SessionEventHandler): Unsubscribe;
 }

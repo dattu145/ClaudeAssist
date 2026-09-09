@@ -23,5 +23,7 @@
 - [x] Committed and pushed page7 to origin/main
 - [x] Write `.claude/plans/page8.md` and implement (ClaudeCodeAdapter, the
       real implementation)
-- [ ] Write `.claude/plans/page9.md` and implement (Session Registry)
-- [ ] User: review/commit page8 (not yet committed)
+- [x] Committed and pushed page8 to origin/main
+- [x] Write `.claude/plans/page9.md` and implement (Session Registry)
+- [ ] Write `.claude/plans/page10.md` and implement (event system + EventRepository)
+- [ ] User: review/commit page9 (not yet committed)

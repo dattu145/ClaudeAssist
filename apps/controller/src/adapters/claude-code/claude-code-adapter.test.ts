@@ -185,6 +185,16 @@ describe("ClaudeCodeAdapter", () => {
     await expect(adapter.getStatus("session_missing")).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 
+  it("getSession returns the full current record, and throws for an unknown session", async () => {
+    const { runCli } = makeScriptedRunCli([]);
+    const adapter = new ClaudeCodeAdapter(silentLogger(), runCli);
+
+    const started = await adapter.startSession({ projectId: "p1", projectPath: "/x" });
+    expect(await adapter.getSession(started.id)).toEqual(started);
+
+    await expect(adapter.getSession("session_missing")).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+
   it("delivers output and status_changed events during a dispatch", async () => {
     const claudeSessionId = "s1";
     const { runCli } = makeScriptedRunCli([

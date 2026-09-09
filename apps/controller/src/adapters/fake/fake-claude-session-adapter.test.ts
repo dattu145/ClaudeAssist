@@ -105,6 +105,20 @@ describe("FakeClaudeSessionAdapter", () => {
     );
   });
 
+  it("getSession returns the full current record", async () => {
+    const started = await adapter.startSession({ projectId: "project_1", projectPath: "/x" });
+
+    const session = await adapter.getSession(started.id);
+
+    expect(session).toEqual(started);
+  });
+
+  it("getSession throws SessionNotFoundError for an unknown session", async () => {
+    await expect(adapter.getSession("session_missing")).rejects.toBeInstanceOf(
+      SessionNotFoundError
+    );
+  });
+
   it("sendInstruction throws SessionNotFoundError for an unknown session", async () => {
     await expect(adapter.sendInstruction("session_missing", "hi")).rejects.toBeInstanceOf(
       SessionNotFoundError

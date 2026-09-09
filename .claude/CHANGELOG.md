@@ -79,3 +79,15 @@
   the fix doesn't reintroduce injection risk by testing an actual payload).
   132 default-suite tests passing (2 opt-in real-CLI tests, run separately
   against the live CLI, also passing).
+- Committed and pushed page8 to `origin/main`.
+- Implemented page9: `SessionRegistry` (SQLite-backed, wraps
+  `ClaudeSessionAdapter`, mirrors page6's entity/repository/registry
+  pattern). `sessions` table with FK-blocks-delete against `projects`
+  (deliberate). Added `getSession` to the `ClaudeSessionAdapter` port
+  (`getStatus` alone wasn't enough for accurate persistence). Caught and
+  fixed a real bug via integration testing: `lastOutput`/`lastError`/
+  `currentTask` were schema fields since page2 that neither adapter ever
+  actually populated — fixed in both `FakeClaudeSessionAdapter` and
+  `ClaudeCodeAdapter`. No HTTP routes yet (deferred to page12). 149
+  default-suite tests passing; both opt-in real-CLI tests re-verified
+  passing after the adapter changes.
