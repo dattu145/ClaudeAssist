@@ -47,8 +47,27 @@ export interface SessionAdapterEvent {
 export type SessionEventHandler = (event: SessionAdapterEvent) => void;
 export type Unsubscribe = () => void;
 
+/**
+ * A process-level `claude` session found via `claude agents --json`
+ * (see .claude/research/claude-code.md), *not* a ClaudeOps domain
+ * `ClaudeSession` — discovery has no concept of `projectId` (a ClaudeOps
+ * invention). Matching a discovered process to a registered `Project` by
+ * `cwd` is the Session Registry's job (page9), not the adapter's. Amended
+ * here (page8) from the original `discoverSessions(): Promise<ClaudeSession[]>`
+ * signature, which turned out to be unimplementable by the real adapter.
+ */
+export interface DiscoveredClaudeProcess {
+  pid: number;
+  cwd: string;
+  kind: "interactive" | "background";
+  claudeSessionId: string;
+  name: string | null;
+  status: "busy" | "idle" | null;
+  backgroundId: string | null;
+}
+
 export interface ClaudeSessionAdapter {
-  discoverSessions(): Promise<ClaudeSession[]>;
+  discoverSessions(): Promise<DiscoveredClaudeProcess[]>;
   startSession(input: StartSessionInput): Promise<ClaudeSession>;
   sendInstruction(sessionId: string, instruction: string): Promise<InstructionResult>;
   resumeSession(sessionId: string): Promise<ClaudeSession>;

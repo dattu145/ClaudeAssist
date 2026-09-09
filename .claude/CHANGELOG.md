@@ -61,3 +61,21 @@
   via `queueInstructionOutcome`, and models a synchronous per-session event
   subscription. Added `SessionNotFoundError`. 110 tests passing,
   lint/typecheck clean.
+- Committed and pushed page7 to `origin/main`.
+- Implemented page8: real `ClaudeCodeAdapter`. Probed the live `claude` CLI
+  directly (user-approved, small real API spend) and found the original
+  `--bg`-based design unworkable (`--bg`/`-p` are mutually exclusive,
+  `--session-id` is ignored under `--bg`, a `--bg` session can't be
+  `--resume`d until stopped) — corrected research/claude-code.md and
+  redesigned around plain resumable `-p --session-id`/`-p --resume`
+  conversations only. Outcome mapping grounded in a real captured
+  stream-json transcript (`permission_denials` -> `WAITING_FOR_PERMISSION`,
+  `is_error` -> `FAILED`, else `COMPLETED`; `WAITING_FOR_INPUT` documented
+  as unreachable). Changed `discoverSessions`'s return type to a new
+  `DiscoveredClaudeProcess` type (no `projectId` at the process level).
+  Caught and fixed two real bugs via testing: a stale-closure race letting
+  a completing dispatch clobber a concurrent `stopSession()`, and a
+  Windows `spawn EINVAL` on `.cmd` files without `shell: true` (verified
+  the fix doesn't reintroduce injection risk by testing an actual payload).
+  132 default-suite tests passing (2 opt-in real-CLI tests, run separately
+  against the live CLI, also passing).

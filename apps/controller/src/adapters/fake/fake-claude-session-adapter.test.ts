@@ -94,7 +94,9 @@ describe("FakeClaudeSessionAdapter", () => {
 
     const discovered = await adapter.discoverSessions();
 
-    expect(discovered.map((s) => s.id).sort()).toEqual([a.id, b.id].sort());
+    expect(discovered.map((s) => s.claudeSessionId).sort()).toEqual(
+      [a.claudeSessionId ?? a.id, b.claudeSessionId ?? b.id].sort()
+    );
   });
 
   it("getStatus throws SessionNotFoundError for an unknown session", async () => {

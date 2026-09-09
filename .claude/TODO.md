@@ -20,6 +20,8 @@
 - [x] Committed and pushed page6 to origin/main
 - [x] Write `.claude/plans/page7.md` and implement (FakeClaudeSessionAdapter
       + ClaudeSessionAdapter interface)
-- [ ] Write `.claude/plans/page8.md` and implement (ClaudeCodeAdapter, the
+- [x] Committed and pushed page7 to origin/main
+- [x] Write `.claude/plans/page8.md` and implement (ClaudeCodeAdapter, the
       real implementation)
-- [ ] User: review/commit page7 (not yet committed)
+- [ ] Write `.claude/plans/page9.md` and implement (Session Registry)
+- [ ] User: review/commit page8 (not yet committed)
