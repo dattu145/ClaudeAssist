@@ -11,7 +11,8 @@
   "dependencies": {
     "@claudeops/shared": "0.1.0",
     "@claudeops/protocol": "0.1.0",
-    "@claudeops/config": "0.1.0"
+    "@claudeops/config": "0.1.0",
+    "@claudeops/logging": "0.1.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

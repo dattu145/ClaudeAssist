@@ -8,6 +8,7 @@
   "references": [
     { "path": "../../packages/shared" },
     { "path": "../../packages/protocol" },
-    { "path": "../../packages/config" }
+    { "path": "../../packages/config" },
+    { "path": "../../packages/logging" }
   ]
 }

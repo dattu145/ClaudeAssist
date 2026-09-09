@@ -8,5 +8,7 @@
       Expo scaffold) — do not force-fix without review
 - [x] Write `.claude/plans/page2.md` and implement (packages/protocol & packages/config)
 - [x] Committed and pushed page1 to origin/main
-- [ ] Write `.claude/plans/page3.md` and implement (packages/logging)
-- [ ] User: review/commit page2 (not yet committed)
+- [x] Write `.claude/plans/page3.md` and implement (packages/logging)
+- [x] Committed and pushed page2 to origin/main
+- [ ] Write `.claude/plans/page4.md` and implement (controller foundation)
+- [ ] User: review/commit page3 (not yet committed)
