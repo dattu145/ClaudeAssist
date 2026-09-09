@@ -25,6 +25,14 @@ describe("loadConfig", () => {
     expect(config.LOG_LEVEL).toBe("debug");
   });
 
+  it("accepts PORT=0 (delegates to the OS for an ephemeral port)", () => {
+    expect(loadConfig({ PORT: "0" }).PORT).toBe(0);
+  });
+
+  it("rejects a negative PORT", () => {
+    expect(() => loadConfig({ PORT: "-1" })).toThrow(ConfigValidationError);
+  });
+
   it("throws a ConfigValidationError with an aggregated message on invalid input", () => {
     expect(() => loadConfig({ PORT: "not-a-number", LOG_LEVEL: "shout" })).toThrow(
       ConfigValidationError

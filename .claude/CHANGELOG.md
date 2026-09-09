@@ -24,3 +24,13 @@
   denylist redaction, `.child()` scoping, rotation strategy documented and
   deliberately deferred to page21). Wired into `apps/controller`, replacing
   `console.log`. 46 tests passing, lint/typecheck clean.
+- Committed and pushed page3 to `origin/main`.
+- Implemented page4: controller foundation — Express app with `/health`,
+  SQLite bootstrap (WAL mode) + hand-rolled migration runner, graceful
+  SIGINT/SIGTERM shutdown, request-scoped logging. Widened `PORT` in
+  `packages/config` to accept 0 (OS-assigned ephemeral port, used by tests).
+  Fixed a Windows-specific bug where `claude --version` failed via
+  `execFile` (needs a shell to resolve the `.cmd` shim) — now uses `exec`,
+  documented in research/claude-code.md. Added `pretest` (`tsc -b`) to the
+  root `test` script after a stale cross-package build masked a real test
+  failure. 63 tests passing, lint/typecheck clean.

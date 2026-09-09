@@ -71,6 +71,16 @@ Re-verify against `claude --help` when the installed version changes — flags e
 - `claude doctor` — health/diagnostic check of the CC installation itself; wire into the
   controller's own `/health` endpoint as one input signal.
 
+## Platform note: invoking the CLI from Node on Windows
+
+On Windows, the npm-installed `claude` command is a `claude.cmd` shim (in
+addition to a real `claude` binary launcher). `child_process.execFile("claude",
+...)` without a shell fails with `ENOENT` — `execFile` only resolves real
+executables, not `.cmd` wrappers. Use `child_process.exec("claude ...")` (which
+runs through a shell) instead, as done in `apps/controller/src/health.ts`'s
+`defaultCheckClaudeCli`. Verified against the installed CLI (v2.1.266) on this
+machine (2026-09-09).
+
 ## What this rules out
 
 - No need for terminal screenshotting, keystroke injection, or Playwright-driven terminal

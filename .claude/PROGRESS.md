@@ -1,19 +1,30 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page4 (controller foundation) — not started
+**Current page**: page5 (session state machine + domain entities) — not started
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
-  (packages/protocol & packages/config), page3 (packages/logging)
+  (packages/protocol & packages/config), page3 (packages/logging), page4
+  (controller foundation)
 **Active work**: none
 **Blocked work**: none
-**Known issues**: `npm install` reports 15 pre-existing vulnerabilities in
-  transitive deps (mostly from the Expo scaffold) — not yet triaged; do not
-  run `npm audit fix --force` without review, it can silently change majors.
-**Next action**: write `.claude/plans/page4.md`, then implement it
-**Last completed milestone**: page3 implemented and verified (2026-09-09) —
-  `packages/logging` (`createLogger`, structured JSON-line output, level
-  filtering reusing `LOG_LEVEL` from packages/config, unconditional denylist
-  redaction, `.child()` scoping) wired into `apps/controller`, replacing the
-  earlier `console.log`. Verified: typecheck/lint clean, 46 tests passing
-  across 10 files, and a direct `tsx src/index.ts` run producing a real
-  redacted structured JSON log line.
+**Known issues**: `npm install` reports 17 pre-existing vulnerabilities in
+  transitive deps (mostly from the Expo scaffold + better-sqlite3's build
+  chain) — not yet triaged; do not run `npm audit fix --force` without
+  review, it can silently change majors.
+**Next action**: write `.claude/plans/page5.md`, then implement it
+**Last completed milestone**: page4 implemented and verified (2026-09-09) —
+  controller is now a real long-running process: Express app with `/health`
+  (validated against `HealthResponseSchema`, checks both DB reachability and
+  `claude --version`), SQLite bootstrap (WAL mode, auto-created data dir,
+  `~` expansion) with a minimal hand-rolled migration runner (`0001_init.sql`
+  applied and tracked), graceful SIGINT/SIGTERM shutdown with a bounded
+  force-close timeout, and request-scoped structured logging (`requestId`).
+  Root `npm test` now runs `tsc -b` first (added as `pretest`) after a stale
+  cross-package `dist/` output caused a false test failure during this page
+  — documented so future pages don't hit the same trap. Platform fix found
+  and documented in research/claude-code.md: `claude --version` must be
+  invoked via `exec` (shell), not `execFile`, on Windows because the
+  npm-installed CLI is a `.cmd` shim. Verified: typecheck/lint clean, 63
+  tests passing across 15 files, and a manual end-to-end run confirming
+  `/health` returns `status: "ok"` and `stop()` cleanly tears the server
+  down.

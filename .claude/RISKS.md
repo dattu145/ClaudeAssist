@@ -11,3 +11,5 @@
 | Mobile app on a network without reachable controller (no tunnel yet) | Dashboard unusable off-LAN | Explicitly out of scope for Phase 1; document as a known limitation, not solved with a quick tunnel hack |
 | Android background/mic restrictions | Future voice feature could over-promise | research/android-background.md stub flags this before any implementation starts |
 | Scope creep into voice/WhatsApp/Bordio during Phase 1 | Phase 1 never ships | Hard boundary enforced by MASTER_PLAN.md page sequence; those integrations are separate, later pages |
+| Stale cross-package `dist/` output masking source changes | A package edit doesn't take effect for consumers until rebuilt, causing tests to pass/fail against old code (hit during page4) | Root `npm test` runs `tsc -b` first (`pretest` script); `npm run typecheck` before `npm test` whenever a shared package changed |
+| `child_process.execFile` can't find Windows `.cmd` shims (e.g. `claude.cmd`) | Silent `ENOENT`, health checks report false negatives | Use `exec` (shell) for CLI checks on this platform, documented in research/claude-code.md (found during page4) |
