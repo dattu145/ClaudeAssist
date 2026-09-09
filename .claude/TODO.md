@@ -12,6 +12,8 @@
 - [x] Committed and pushed page2 to origin/main
 - [x] Committed and pushed page3 to origin/main
 - [x] Write `.claude/plans/page4.md` and implement (controller foundation)
-- [ ] Write `.claude/plans/page5.md` and implement (session state machine +
+- [x] Committed and pushed page4 to origin/main
+- [x] Write `.claude/plans/page5.md` and implement (session state machine +
       domain entities)
-- [ ] User: review/commit page4 (not yet committed)
+- [ ] Write `.claude/plans/page6.md` and implement (Project Registry)
+- [ ] User: review/commit page5 (not yet committed)

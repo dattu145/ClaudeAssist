@@ -2,5 +2,5 @@
 
 **Phase 1 — Claude Code Session Controller (dashboard-only mobile client)**
 
-Status: **page4 (controller foundation) complete and verified.**
-Next: write and implement page5 (session state machine + domain entities).
+Status: **page5 (session state machine + domain entities) complete and verified.**
+Next: write and implement page6 (Project Registry).

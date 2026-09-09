@@ -34,3 +34,11 @@
   documented in research/claude-code.md. Added `pretest` (`tsc -b`) to the
   root `test` script after a stale cross-package build masked a real test
   failure. 63 tests passing, lint/typecheck clean.
+- Committed and pushed page4 to `origin/main`.
+- Implemented page5: `packages/shared` gained `generateId`/`nowIso` utility
+  functions. `apps/controller/src/domain/session/state-machine.ts`
+  (`applyTransition`) is now the single enforced path for session status
+  changes — invalid transitions are logged and no-op, never applied
+  silently. `entity.ts` (`createSession`/`transitionSession`) builds on it,
+  is immutable, and self-validates against `ClaudeSessionSchema`. 77 tests
+  passing, lint/typecheck clean.
