@@ -50,7 +50,10 @@ export class FakeClaudeSessionAdapter implements ClaudeSessionAdapter {
   }
 
   async startSession(input: StartSessionInput): Promise<ClaudeSession> {
-    let session = createSession({ projectId: input.projectId });
+    let session = createSession({
+      projectId: input.projectId,
+      ...(input.sessionId !== undefined ? { id: input.sessionId } : {}),
+    });
     this.sessions.set(session.id, session);
     this.projectPaths.set(session.id, input.projectPath);
     session = this.applyAndEmit(session, "STARTING");

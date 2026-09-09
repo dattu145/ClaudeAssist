@@ -35,6 +35,16 @@ describe("FakeClaudeSessionAdapter", () => {
     expect(session.status).toBe("COMPLETED");
   });
 
+  it("startSession honors a caller-supplied sessionId", async () => {
+    const session = await adapter.startSession({
+      projectId: "project_1",
+      projectPath: "/x",
+      sessionId: "session_fixed-id",
+    });
+
+    expect(session.id).toBe("session_fixed-id");
+  });
+
   it("sendInstruction on an idle session runs through WORKING to COMPLETED by default", async () => {
     const started = await adapter.startSession({ projectId: "project_1", projectPath: "/x" });
 

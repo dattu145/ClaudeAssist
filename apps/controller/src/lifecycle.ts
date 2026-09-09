@@ -6,7 +6,13 @@ import { openDatabase } from "./db/connection.js";
 import { runMigrations } from "./db/migrate.js";
 import { createApp } from "./server.js";
 import { SqliteProjectRepository } from "./adapters/persistence/sqlite/project-repository.js";
+import { SqliteSessionRepository } from "./adapters/persistence/sqlite/session-repository.js";
+import { SqliteEventRepository } from "./adapters/persistence/sqlite/event-repository.js";
+import { ClaudeCodeAdapter } from "./adapters/claude-code/claude-code-adapter.js";
 import { ProjectRegistry } from "./domain/project/registry.js";
+import { SessionRegistry } from "./domain/session/registry.js";
+import { InProcessEventBus } from "./domain/events/bus.js";
+import { wireEventPersistence } from "./domain/events/wire-persistence.js";
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -25,11 +31,26 @@ export function startController(config: Config, logger: Logger): Controller {
 
   const startedAt = Date.now();
   const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
+
+  const eventBus = new InProcessEventBus(logger.child({ component: "event-bus" }));
+  const eventRepository = new SqliteEventRepository(db);
+  wireEventPersistence(eventBus, eventRepository, logger.child({ component: "event-persistence" }));
+
+  const claudeAdapter = new ClaudeCodeAdapter(logger.child({ component: "claude-code-adapter" }));
+  const sessionRegistry = new SessionRegistry(
+    new SqliteSessionRepository(db),
+    claudeAdapter,
+    projectRegistry,
+    eventBus
+  );
+
   const app = createApp({
     db,
     startedAt,
     logger: logger.child({ component: "http" }),
     projectRegistry,
+    sessionRegistry,
+    eventRepository,
   });
 
   const server = app.listen(config.PORT, () => {

@@ -10,7 +10,12 @@ import type { Express } from "express";
 import { createApp } from "../../server.js";
 import { runMigrations } from "../../db/migrate.js";
 import { SqliteProjectRepository } from "../../adapters/persistence/sqlite/project-repository.js";
+import { SqliteSessionRepository } from "../../adapters/persistence/sqlite/session-repository.js";
+import { SqliteEventRepository } from "../../adapters/persistence/sqlite/event-repository.js";
+import { FakeClaudeSessionAdapter } from "../../adapters/fake/fake-claude-session-adapter.js";
 import { ProjectRegistry } from "../../domain/project/registry.js";
+import { SessionRegistry } from "../../domain/session/registry.js";
+import { InProcessEventBus } from "../../domain/events/bus.js";
 
 describe("/projects", () => {
   let db: Database.Database;
@@ -22,12 +27,22 @@ describe("/projects", () => {
     runMigrations(db);
     const logger = createLogger({ component: "test" }, { write: () => {} });
     const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
+    const eventBus = new InProcessEventBus(logger);
+    const sessionRegistry = new SessionRegistry(
+      new SqliteSessionRepository(db),
+      new FakeClaudeSessionAdapter(logger),
+      projectRegistry,
+      eventBus
+    );
+    const eventRepository = new SqliteEventRepository(db);
     app = createApp({
       db,
       startedAt: Date.now(),
       logger,
       checkClaudeCli: () => Promise.resolve(true),
       projectRegistry,
+      sessionRegistry,
+      eventRepository,
     });
     projectDir = mkdtempSync(join(tmpdir(), "claudeops-project-"));
   });

@@ -1,20 +1,40 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page10 (event system + EventRepository) — not started
+**Current page**: page11 (Task system) — not started
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
   page6 (Project Registry), page7 (ClaudeSessionAdapter interface +
   FakeClaudeSessionAdapter), page8 (ClaudeCodeAdapter — real implementation),
-  page9 (Session Registry)
+  page9 (Session Registry), page10 (event system + EventRepository)
 **Active work**: none
 **Blocked work**: none
 **Known issues**: `npm install` reports 17 pre-existing vulnerabilities in
   transitive deps (mostly from the Expo scaffold + better-sqlite3's build
   chain) — not yet triaged; do not run `npm audit fix --force` without
   review, it can silently change majors.
-**Next action**: write `.claude/plans/page10.md`, then implement it
+**Next action**: write `.claude/plans/page11.md`, then implement it
+**Last completed milestone**: page10 implemented and verified (2026-09-09) —
+  `InProcessEventBus` + `translateSessionEvent` (`SessionAdapterEvent` ->
+  `DomainEvent`, with `status_changed` mapped to the more specific
+  `SESSION_STARTED`/`SESSION_WAITING_FOR_INPUT`/
+  `SESSION_WAITING_FOR_PERMISSION` types where derivable) +
+  `SqliteEventRepository`, wired together via `wireEventPersistence`.
+  `GET /sessions/:id/events` is live. `lifecycle.ts` now constructs and
+  wires the real `ClaudeCodeAdapter` into the running controller for the
+  first time (grep-verified). A real timing bug was found and fixed before
+  it shipped: `SessionRegistry` (page9) subscribed to adapter events only
+  *after* `adapter.startSession` resolved, but an initial-instruction
+  dispatch fires its events *during* that same call — so the very first
+  dispatch's events would have been silently dropped. Fixed by having
+  `SessionRegistry` generate the session id upfront and subscribe before
+  calling the adapter (`StartSessionInput` gained an optional `sessionId`;
+  `createSession` gained an optional `id` override). Verified with a
+  dedicated regression test and a real end-to-end manual run against the
+  live controller confirming all 5 events from an initial dispatch
+  (`SESSION_STARTED` through `SESSION_COMPLETED`) were captured. 173
+  default-suite tests passing across 34 files; typecheck/lint clean.
 **Last completed milestone**: page9 implemented and verified (2026-09-09) —
   `SessionRegistry` wraps a `ClaudeSessionAdapter` with SQLite persistence
   (`sessions` table, FK-blocks-delete against `projects` — deliberate,

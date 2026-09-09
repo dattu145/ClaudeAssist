@@ -78,6 +78,19 @@ describe("ClaudeCodeAdapter", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("startSession honors a caller-supplied sessionId", async () => {
+    const { runCli } = makeScriptedRunCli([]);
+    const adapter = new ClaudeCodeAdapter(silentLogger(), runCli);
+
+    const session = await adapter.startSession({
+      projectId: "p1",
+      projectPath: "/x",
+      sessionId: "session_fixed-id",
+    });
+
+    expect(session.id).toBe("session_fixed-id");
+  });
+
   it("startSession with an initial instruction dispatches it, using --session-id on the first call", async () => {
     const claudeSessionId = "0de8110c-5079-4cd8-8244-e2493dfc2b5e";
     const { runCli, calls } = makeScriptedRunCli([

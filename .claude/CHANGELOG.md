@@ -91,3 +91,15 @@
   `ClaudeCodeAdapter`. No HTTP routes yet (deferred to page12). 149
   default-suite tests passing; both opt-in real-CLI tests re-verified
   passing after the adapter changes.
+- Committed and pushed page9 to `origin/main`.
+- Implemented page10: `InProcessEventBus`, `translateSessionEvent`
+  (`SessionAdapterEvent` -> `DomainEvent`), `SqliteEventRepository`, and
+  `wireEventPersistence`. `GET /sessions/:id/events` is live.
+  `lifecycle.ts` wires the real `ClaudeCodeAdapter` into the running
+  controller for the first time. Found and fixed a real timing bug before
+  it shipped: `SessionRegistry` subscribed to adapter events after
+  `startSession` resolved, silently missing an initial-instruction
+  dispatch's own events — fixed by generating the session id upfront and
+  subscribing before calling the adapter. Verified by a regression test
+  and a real end-to-end manual run. 173 default-suite tests passing,
+  lint/typecheck clean.

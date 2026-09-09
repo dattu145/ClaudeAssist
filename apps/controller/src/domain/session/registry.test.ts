@@ -10,6 +10,7 @@ import { SqliteSessionRepository } from "../../adapters/persistence/sqlite/sessi
 import { FakeClaudeSessionAdapter } from "../../adapters/fake/fake-claude-session-adapter.js";
 import { ProjectRegistry } from "../project/registry.js";
 import { ProjectNotFoundError, SessionNotFoundError } from "../errors.js";
+import { InProcessEventBus, type EventBus } from "../events/bus.js";
 import { SessionRegistry } from "./registry.js";
 
 describe("SessionRegistry", () => {
@@ -18,6 +19,7 @@ describe("SessionRegistry", () => {
   let projectRegistry: ProjectRegistry;
   let sessionRegistry: SessionRegistry;
   let adapter: FakeClaudeSessionAdapter;
+  let eventBus: EventBus;
   let projectId: string;
 
   beforeEach(async () => {
@@ -27,7 +29,13 @@ describe("SessionRegistry", () => {
 
     projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
     adapter = new FakeClaudeSessionAdapter(createLogger({ component: "test" }, { write: () => {} }));
-    sessionRegistry = new SessionRegistry(new SqliteSessionRepository(db), adapter, projectRegistry);
+    eventBus = new InProcessEventBus(createLogger({ component: "test" }, { write: () => {} }));
+    sessionRegistry = new SessionRegistry(
+      new SqliteSessionRepository(db),
+      adapter,
+      projectRegistry,
+      eventBus
+    );
 
     const project = await projectRegistry.registerProject({ name: "Website", path: projectDir });
     projectId = project.id;
@@ -139,5 +147,34 @@ describe("SessionRegistry", () => {
     expect(events).toContain("output");
     expect(events).toContain("status_changed");
     expect(events).toContain("completed");
+  });
+
+  it("publishes translated DomainEvents to the event bus for later instructions", async () => {
+    const started = await sessionRegistry.startSession({ projectId });
+    const published: string[] = [];
+    eventBus.subscribe((e) => published.push(e.type));
+
+    await sessionRegistry.sendInstruction(started.id, "go");
+
+    expect(published).toContain("SESSION_OUTPUT");
+    expect(published).toContain("SESSION_COMPLETED");
+  });
+
+  it("does not miss the initial-instruction dispatch's events (the page10 timing fix)", async () => {
+    const published: string[] = [];
+    eventBus.subscribe((e) => published.push(e.type));
+
+    const session = await sessionRegistry.startSession({
+      projectId,
+      initialInstruction: "say hi",
+    });
+
+    expect(session.status).toBe("COMPLETED");
+    // These fired *inside* adapter.startSession, before it returned — a
+    // registry subscribing only afterward would have missed all of them.
+    expect(published).toContain("SESSION_OUTPUT");
+    expect(published).toContain("SESSION_COMPLETED");
+    expect(published.every((type) => typeof type === "string")).toBe(true);
+    expect(published.length).toBeGreaterThan(0);
   });
 });

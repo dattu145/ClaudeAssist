@@ -6,6 +6,10 @@ import { applyTransition } from "./state-machine.js";
 export interface CreateSessionInput {
   projectId: string;
   claudeSessionId?: string | null;
+  /** Optional caller-supplied id (page10: SessionRegistry generates this
+   * upfront so it can subscribe to adapter events before the adapter's own
+   * startSession call fires them). Defaults to a fresh generated id. */
+  id?: string;
 }
 
 /**
@@ -16,7 +20,7 @@ export interface CreateSessionInput {
 export function createSession(input: CreateSessionInput): ClaudeSession {
   const timestamp = nowIso();
   const session: ClaudeSession = {
-    id: generateId("session"),
+    id: input.id ?? generateId("session"),
     projectId: input.projectId,
     claudeSessionId: input.claudeSessionId ?? null,
     status: "DISCOVERED",

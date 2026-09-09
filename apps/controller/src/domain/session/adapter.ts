@@ -14,6 +14,15 @@ export interface StartSessionInput {
   projectPath: string;
   initialInstruction?: string;
   name?: string;
+  /**
+   * Added page10: an optional caller-supplied ClaudeOps session id (the
+   * eventual `ClaudeSession.id`, distinct from `claudeSessionId` — the
+   * real CLI's own conversation id). Lets `SessionRegistry` subscribe to
+   * adapter events *before* calling `startSession`, so events fired during
+   * an initial-instruction dispatch (which happens inside this same call)
+   * aren't missed. Adapters generate their own id when omitted.
+   */
+  sessionId?: string;
 }
 
 /** Mirrors the session states an instruction dispatch can end in (see

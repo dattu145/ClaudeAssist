@@ -6,7 +6,12 @@ import request from "supertest";
 import { createApp } from "./server.js";
 import { runMigrations } from "./db/migrate.js";
 import { SqliteProjectRepository } from "./adapters/persistence/sqlite/project-repository.js";
+import { SqliteSessionRepository } from "./adapters/persistence/sqlite/session-repository.js";
+import { SqliteEventRepository } from "./adapters/persistence/sqlite/event-repository.js";
+import { FakeClaudeSessionAdapter } from "./adapters/fake/fake-claude-session-adapter.js";
 import { ProjectRegistry } from "./domain/project/registry.js";
+import { SessionRegistry } from "./domain/session/registry.js";
+import { InProcessEventBus } from "./domain/events/bus.js";
 
 describe("createApp", () => {
   let db: Database.Database;
@@ -20,7 +25,23 @@ describe("createApp", () => {
     runMigrations(db);
     const logger = createLogger({ component: "test" }, { write: () => {} });
     const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
-    return createApp({ db, startedAt: Date.now(), logger, checkClaudeCli, projectRegistry });
+    const eventBus = new InProcessEventBus(logger);
+    const sessionRegistry = new SessionRegistry(
+      new SqliteSessionRepository(db),
+      new FakeClaudeSessionAdapter(logger),
+      projectRegistry,
+      eventBus
+    );
+    const eventRepository = new SqliteEventRepository(db);
+    return createApp({
+      db,
+      startedAt: Date.now(),
+      logger,
+      checkClaudeCli,
+      projectRegistry,
+      sessionRegistry,
+      eventRepository,
+    });
   }
 
   it("GET /health returns a HealthResponseSchema-valid body", async () => {

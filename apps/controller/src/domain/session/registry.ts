@@ -1,6 +1,9 @@
+import { generateId } from "@claudeops/shared";
 import type { ClaudeSession } from "@claudeops/protocol";
 import type { ProjectRegistry } from "../project/registry.js";
 import { SessionNotFoundError } from "../errors.js";
+import type { EventBus } from "../events/bus.js";
+import { translateSessionEvent } from "../events/translate-session-event.js";
 import type {
   ClaudeSessionAdapter,
   InstructionResult,
@@ -17,7 +20,7 @@ export interface StartSessionRegistryInput {
 
 /**
  * Wraps a ClaudeSessionAdapter (page7/page8) with SQLite persistence,
- * status tracking, and event subscription — the entity/repository/registry
+ * status tracking, and event publication — the entity/repository/registry
  * layering page6 established for projects, applied to sessions. Never
  * talks to SQLite or a specific adapter implementation directly, only the
  * SessionRepository/ClaudeSessionAdapter interfaces, so it works
@@ -28,7 +31,8 @@ export class SessionRegistry {
   constructor(
     private readonly repository: SessionRepository,
     private readonly adapter: ClaudeSessionAdapter,
-    private readonly projectRegistry: ProjectRegistry
+    private readonly projectRegistry: ProjectRegistry,
+    private readonly eventBus: EventBus
   ) {}
 
   async startSession(input: StartSessionRegistryInput): Promise<ClaudeSession> {
@@ -37,9 +41,19 @@ export class SessionRegistry {
     // no session is ever created for an unregistered project.
     const project = await this.projectRegistry.getProject(input.projectId);
 
+    // Generated upfront (page10) and subscribed to *before* calling the
+    // adapter: an initial-instruction dispatch fires events inside
+    // adapter.startSession itself, before it returns — subscribing
+    // afterward would silently miss all of them.
+    const sessionId = generateId("session");
+    this.adapter.subscribe(sessionId, (event) => {
+      this.eventBus.publish(translateSessionEvent({ id: sessionId, projectId: project.id }, event));
+    });
+
     const session = await this.adapter.startSession({
       projectId: project.id,
       projectPath: project.path,
+      sessionId,
       ...(input.initialInstruction !== undefined
         ? { initialInstruction: input.initialInstruction }
         : {}),

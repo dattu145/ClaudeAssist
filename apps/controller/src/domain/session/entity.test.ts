@@ -21,6 +21,11 @@ describe("createSession", () => {
     const session = createSession({ projectId: "project_1", claudeSessionId: "claude-abc" });
     expect(session.claudeSessionId).toBe("claude-abc");
   });
+
+  it("accepts a caller-supplied id instead of generating one", () => {
+    const session = createSession({ projectId: "project_1", id: "session_fixed-id" });
+    expect(session.id).toBe("session_fixed-id");
+  });
 });
 
 describe("transitionSession", () => {
