@@ -11,3 +11,10 @@
   `packages/shared`), TS project references, ESLint flat config + Prettier,
   root Vitest config, `.env.example`. Verified install/typecheck/lint/test
   and Expo boot (expo-doctor 21/21, Metro starts).
+- Committed and pushed page1 to `origin/main`
+  (https://github.com/dattu145/ClaudeAssist).
+- Implemented page2: `packages/protocol` (Project/ClaudeSession/Task/
+  DomainEvent Zod schemas, session state-transition table, versioned WS
+  envelope, REST request/response schemas) and `packages/config`
+  (Zod-validated env config, aggregated error messages). Wired into
+  `apps/controller`. 35 tests passing, lint/typecheck clean.

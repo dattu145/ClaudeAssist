@@ -2,6 +2,8 @@
   "files": [],
   "references": [
     { "path": "packages/shared" },
+    { "path": "packages/protocol" },
+    { "path": "packages/config" },
     { "path": "apps/controller" }
   ]
 }

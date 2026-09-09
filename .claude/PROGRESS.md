@@ -1,18 +1,22 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page2 (packages/protocol & packages/config) — not started
-**Completed pages**: page1 (project foundation & monorepo skeleton)
+**Current page**: page3 (packages/logging) — not started
+**Completed pages**: page1 (project foundation & monorepo skeleton), page2
+  (packages/protocol & packages/config)
 **Active work**: none
 **Blocked work**: none
 **Known issues**: `npm install` reports 15 pre-existing vulnerabilities in
   transitive deps (mostly from the Expo scaffold) — not yet triaged; do not
   run `npm audit fix --force` without review, it can silently change majors.
-**Next action**: write `.claude/plans/page2.md`, then implement it
-**Last completed milestone**: page1 implemented and verified (2026-09-09) —
-  git repo initialized, npm workspaces (`apps/controller`, `apps/mobile`,
-  `packages/shared`) wired with TS project references, ESLint flat config,
-  Prettier, root Vitest config. Verified: `npm install`, `npm run typecheck`,
-  `npm run lint`, `npm test` (cross-package import smoke test) all pass;
-  `apps/mobile` passes `expo-doctor` (21/21) and boots via `expo start`
-  (Metro listening on :8081).
+**Next action**: write `.claude/plans/page3.md`, then implement it
+**Last completed milestone**: page2 implemented and verified (2026-09-09) —
+  `packages/protocol` (Zod schemas + inferred types for Project, ClaudeSession
+  incl. all 11 states + transition table, Task incl. all 7 states, 13 domain
+  event types, versioned WS envelope, REST request/response bodies) and
+  `packages/config` (Zod-validated env schema matching `.env.example`,
+  `loadConfig` with aggregated validation errors) both built and wired into
+  `apps/controller`. Verified: `npm run typecheck`, `npm run lint`
+  (0 warnings), `npm test` (35 tests passing across 8 files), and a direct
+  `tsx src/index.ts` run proving all three workspace packages compose
+  correctly at runtime.
