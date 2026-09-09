@@ -2,9 +2,13 @@ import { randomUUID } from "node:crypto";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import type { Logger } from "@claudeops/logging";
 import { getHealth, type HealthDeps } from "./health.js";
+import { DomainError, domainErrorHttpStatus } from "./domain/errors.js";
+import { createProjectsRouter } from "./api/http/projects.js";
+import type { ProjectRegistry } from "./domain/project/registry.js";
 
 export interface AppDeps extends HealthDeps {
   logger: Logger;
+  projectRegistry: ProjectRegistry;
 }
 
 declare module "express-serve-static-core" {
@@ -31,11 +35,19 @@ export function createApp(deps: AppDeps): Express {
       .catch((err: unknown) => next(err));
   });
 
+  app.use("/projects", createProjectsRouter(deps.projectRegistry));
+
   app.use((req: Request, res: Response) => {
     res.status(404).json({ error: "not_found", path: req.path });
   });
 
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof DomainError) {
+      req.logger.warn("request failed with domain error", { error: err.code });
+      res.status(domainErrorHttpStatus(err)).json({ error: err.code, message: err.message });
+      return;
+    }
+
     req.logger.error("unhandled request error", {
       error: err instanceof Error ? err.message : String(err),
     });

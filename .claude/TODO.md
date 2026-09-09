@@ -15,5 +15,8 @@
 - [x] Committed and pushed page4 to origin/main
 - [x] Write `.claude/plans/page5.md` and implement (session state machine +
       domain entities)
-- [ ] Write `.claude/plans/page6.md` and implement (Project Registry)
-- [ ] User: review/commit page5 (not yet committed)
+- [x] Committed and pushed page5 to origin/main
+- [x] Write `.claude/plans/page6.md` and implement (Project Registry)
+- [ ] Write `.claude/plans/page7.md` and implement (FakeClaudeSessionAdapter
+      + ClaudeSessionAdapter interface)
+- [ ] User: review/commit page6 (not yet committed)

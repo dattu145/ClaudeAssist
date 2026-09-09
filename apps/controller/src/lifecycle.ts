@@ -5,6 +5,8 @@ import type { Logger } from "@claudeops/logging";
 import { openDatabase } from "./db/connection.js";
 import { runMigrations } from "./db/migrate.js";
 import { createApp } from "./server.js";
+import { SqliteProjectRepository } from "./adapters/persistence/sqlite/project-repository.js";
+import { ProjectRegistry } from "./domain/project/registry.js";
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -22,7 +24,13 @@ export function startController(config: Config, logger: Logger): Controller {
   }
 
   const startedAt = Date.now();
-  const app = createApp({ db, startedAt, logger: logger.child({ component: "http" }) });
+  const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
+  const app = createApp({
+    db,
+    startedAt,
+    logger: logger.child({ component: "http" }),
+    projectRegistry,
+  });
 
   const server = app.listen(config.PORT, () => {
     logger.info("controller listening", { port: config.PORT });

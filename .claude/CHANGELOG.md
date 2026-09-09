@@ -42,3 +42,13 @@
   silently. `entity.ts` (`createSession`/`transitionSession`) builds on it,
   is immutable, and self-validates against `ClaudeSessionSchema`. 77 tests
   passing, lint/typecheck clean.
+- Committed and pushed page5 to `origin/main`.
+- Implemented page6: Project Registry — the first real business feature.
+  `createProject`/`validateProjectPath` (domain/project/entity.ts),
+  `ProjectRepository` interface + `SqliteProjectRepository` impl,
+  `ProjectRegistry` service (path validation, `ProjectNotFoundError`),
+  mounted at `POST/GET /projects` and `GET /projects/:id`. Added a generic
+  `DomainError` base class and `domainErrorHttpStatus` code-prefix mapping
+  in `server.ts`'s error handler so later pages (session/task registries)
+  can add new error types without touching the HTTP layer again. 98 tests
+  passing, lint/typecheck clean.

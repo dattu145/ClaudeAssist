@@ -4,6 +4,9 @@ import { HealthResponseSchema } from "@claudeops/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "./server.js";
+import { runMigrations } from "./db/migrate.js";
+import { SqliteProjectRepository } from "./adapters/persistence/sqlite/project-repository.js";
+import { ProjectRegistry } from "./domain/project/registry.js";
 
 describe("createApp", () => {
   let db: Database.Database;
@@ -14,8 +17,10 @@ describe("createApp", () => {
 
   function buildApp(checkClaudeCli: () => Promise<boolean> = () => Promise.resolve(true)) {
     db = new Database(":memory:");
+    runMigrations(db);
     const logger = createLogger({ component: "test" }, { write: () => {} });
-    return createApp({ db, startedAt: Date.now(), logger, checkClaudeCli });
+    const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
+    return createApp({ db, startedAt: Date.now(), logger, checkClaudeCli, projectRegistry });
   }
 
   it("GET /health returns a HealthResponseSchema-valid body", async () => {
