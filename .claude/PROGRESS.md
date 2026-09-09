@@ -1,20 +1,40 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page11 (Task system) — not started
+**Current page**: page12 (REST API completion) — not started
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
   page6 (Project Registry), page7 (ClaudeSessionAdapter interface +
   FakeClaudeSessionAdapter), page8 (ClaudeCodeAdapter — real implementation),
-  page9 (Session Registry), page10 (event system + EventRepository)
+  page9 (Session Registry), page10 (event system + EventRepository),
+  page11 (Task system)
 **Active work**: none
-**Blocked work**: none
+**Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
+  failing with 403 (cached credentials are for a different GitHub account,
+  `leadsprogress`, which lacks push access). Page10 and page11 commits are
+  sitting locally on `main`, unpushed. User needs to fix credentials/repo
+  access before the next push.
 **Known issues**: `npm install` reports 17 pre-existing vulnerabilities in
   transitive deps (mostly from the Expo scaffold + better-sqlite3's build
   chain) — not yet triaged; do not run `npm audit fix --force` without
   review, it can silently change majors.
-**Next action**: write `.claude/plans/page11.md`, then implement it
+**Next action**: write `.claude/plans/page12.md`, then implement it
+**Last completed milestone**: page11 implemented and verified (2026-09-09) —
+  `Task` entity/state machine (`packages/protocol`'s `TASK_STATUS_TRANSITIONS`,
+  with `RUNNING -> CANCELLED` deliberately unsupported — flagged as a real
+  gap, not hidden), `TaskRepository`/`SqliteTaskRepository`, and
+  `TaskRegistry` wrapping `SessionRegistry.sendInstruction` so every
+  dispatched instruction produces a persisted, state-tracked `Task` —
+  the spec's "what did I tell Project A to do?" requirement.
+  `startedAt`/`completedAt` bookkeeping lives once in `transitionTask`, not
+  duplicated by callers. `TaskRegistry` never leaves a task stuck in
+  `RUNNING`: a thrown adapter error is caught, the task is marked `FAILED`,
+  then the error is re-thrown — verified by a test that reproduces a
+  mid-dispatch throw (not just a "failed" `InstructionResult`) via a second
+  adapter instance sharing the same SQLite session record. `SessionRegistry`
+  itself was not modified. No HTTP routes yet (page12). Verified:
+  typecheck/lint clean, 200 default-suite tests passing across 39 files.
 **Last completed milestone**: page10 implemented and verified (2026-09-09) —
   `InProcessEventBus` + `translateSessionEvent` (`SessionAdapterEvent` ->
   `DomainEvent`, with `status_changed` mapped to the more specific

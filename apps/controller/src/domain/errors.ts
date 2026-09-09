@@ -32,6 +32,15 @@ export class SessionNotFoundError extends DomainError {
   }
 }
 
+export class TaskNotFoundError extends DomainError {
+  readonly code = "TASK_NOT_FOUND";
+
+  constructor(taskId: string) {
+    super(`Task not found: ${taskId}`);
+    this.name = "TaskNotFoundError";
+  }
+}
+
 export function domainErrorHttpStatus(error: DomainError): number {
   if (error.code.endsWith("_NOT_FOUND")) {
     return 404;

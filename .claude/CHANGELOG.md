@@ -103,3 +103,18 @@
   subscribing before calling the adapter. Verified by a regression test
   and a real end-to-end manual run. 173 default-suite tests passing,
   lint/typecheck clean.
+- Attempted to push page10 to `origin/main`: failed with a 403 — cached git
+  credentials on this machine belong to a different GitHub account
+  (`leadsprogress`) without push access to `dattu145/ClaudeAssist`. Commit
+  remains local pending a credentials fix.
+- Implemented page11: `Task` entity/state machine
+  (`TASK_STATUS_TRANSITIONS` added to `packages/protocol`, `RUNNING ->
+  CANCELLED` deliberately unsupported), `TaskRepository`/
+  `SqliteTaskRepository`, and `TaskRegistry` wrapping
+  `SessionRegistry.sendInstruction` so every dispatch produces a persisted
+  Task. `startedAt`/`completedAt` bookkeeping centralized in
+  `transitionTask`. A task is never left stuck in `RUNNING` when the
+  adapter throws — verified by a test reproducing a genuine mid-dispatch
+  throw, not just a "failed" result. `SessionRegistry` untouched. No HTTP
+  routes yet (page12). 200 default-suite tests passing, lint/typecheck
+  clean.
