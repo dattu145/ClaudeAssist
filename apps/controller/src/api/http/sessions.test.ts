@@ -2,57 +2,26 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { createLogger } from "@claudeops/logging";
+import { ClaudeSessionSchema, TaskSchema, type DomainEvent } from "@claudeops/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
-import { createApp } from "../../server.js";
-import { runMigrations } from "../../db/migrate.js";
-import { SqliteProjectRepository } from "../../adapters/persistence/sqlite/project-repository.js";
-import { SqliteSessionRepository } from "../../adapters/persistence/sqlite/session-repository.js";
-import { SqliteEventRepository } from "../../adapters/persistence/sqlite/event-repository.js";
-import { FakeClaudeSessionAdapter } from "../../adapters/fake/fake-claude-session-adapter.js";
-import { ProjectRegistry } from "../../domain/project/registry.js";
-import { SessionRegistry } from "../../domain/session/registry.js";
-import { InProcessEventBus } from "../../domain/events/bus.js";
-import { wireEventPersistence } from "../../domain/events/wire-persistence.js";
+import { buildTestApp, type TestAppContext } from "../../test-support/build-test-app.js";
 
-describe("/sessions/:id/events", () => {
+describe("/sessions", () => {
+  let ctx: TestAppContext;
   let db: Database.Database;
   let app: Express;
   let projectDir: string;
-  let sessionRegistry: SessionRegistry;
   let projectId: string;
 
   beforeEach(async () => {
-    db = new Database(":memory:");
-    runMigrations(db);
-    const logger = createLogger({ component: "test" }, { write: () => {} });
+    ctx = buildTestApp();
+    db = ctx.db;
+    app = ctx.app;
 
-    const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
-    const eventBus = new InProcessEventBus(logger);
-    const eventRepository = new SqliteEventRepository(db);
-    wireEventPersistence(eventBus, eventRepository, logger);
-
-    sessionRegistry = new SessionRegistry(
-      new SqliteSessionRepository(db),
-      new FakeClaudeSessionAdapter(logger),
-      projectRegistry,
-      eventBus
-    );
-
-    app = createApp({
-      db,
-      startedAt: Date.now(),
-      logger,
-      checkClaudeCli: () => Promise.resolve(true),
-      projectRegistry,
-      sessionRegistry,
-      eventRepository,
-    });
-
-    projectDir = mkdtempSync(join(tmpdir(), "claudeops-session-events-"));
-    const project = await projectRegistry.registerProject({ name: "Website", path: projectDir });
+    projectDir = mkdtempSync(join(tmpdir(), "claudeops-sessions-route-"));
+    const project = await ctx.projectRegistry.registerProject({ name: "Website", path: projectDir });
     projectId = project.id;
   });
 
@@ -61,28 +30,166 @@ describe("/sessions/:id/events", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("returns the persisted, time-ordered events for a session", async () => {
-    const session = await sessionRegistry.startSession({ projectId });
-    await sessionRegistry.sendInstruction(session.id, "do the thing");
-    // publish() is synchronous but repository.create() inside
-    // wireEventPersistence is async — give its microtasks a tick.
-    await new Promise((r) => setTimeout(r, 10));
+  it("POST / creates a session and returns 201 with a schema-valid body", async () => {
+    const res = await request(app).post("/sessions").send({ projectId });
 
-    const res = await request(app).get(`/sessions/${session.id}/events`);
-
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body.every((e: { sessionId: string }) => e.sessionId === session.id)).toBe(true);
-    const types = res.body.map((e: { type: string }) => e.type);
-    expect(types).toContain("SESSION_OUTPUT");
-    expect(types).toContain("SESSION_COMPLETED");
+    expect(res.status).toBe(201);
+    expect(ClaudeSessionSchema.safeParse(res.body).success).toBe(true);
+    expect(res.body.status).toBe("IDLE");
   });
 
-  it("returns 404 for an unknown session", async () => {
-    const res = await request(app).get("/sessions/session_missing/events");
+  it("POST / with an initialInstruction also creates a persisted Task (the page12 gap-fix)", async () => {
+    const res = await request(app)
+      .post("/sessions")
+      .send({ projectId, initialInstruction: "say hi" });
 
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("COMPLETED");
+
+    const tasksRes = await request(app).get(`/sessions/${res.body.id as string}/tasks`);
+    expect(tasksRes.status).toBe(200);
+    expect(tasksRes.body).toHaveLength(1);
+    expect(TaskSchema.safeParse(tasksRes.body[0]).success).toBe(true);
+    expect(tasksRes.body[0].instruction).toBe("say hi");
+    expect(tasksRes.body[0].status).toBe("COMPLETED");
+  });
+
+  it("POST / rejects an invalid body with 400", async () => {
+    const res = await request(app).post("/sessions").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_request");
+  });
+
+  it("POST / with an unknown projectId returns 404", async () => {
+    const res = await request(app).post("/sessions").send({ projectId: "project_missing" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe("SESSION_NOT_FOUND");
+    expect(res.body.error).toBe("PROJECT_NOT_FOUND");
+  });
+
+  it("GET / lists sessions, optionally filtered by projectId", async () => {
+    await request(app).post("/sessions").send({ projectId });
+    const otherDir = mkdtempSync(join(tmpdir(), "claudeops-sessions-route-other-"));
+    const otherProject = await ctx.projectRegistry.registerProject({
+      name: "Other",
+      path: otherDir,
+    });
+    await request(app).post("/sessions").send({ projectId: otherProject.id });
+
+    const all = await request(app).get("/sessions");
+    expect(all.body).toHaveLength(2);
+
+    const filtered = await request(app).get(`/sessions?projectId=${projectId}`);
+    expect(filtered.body).toHaveLength(1);
+    expect(filtered.body[0].projectId).toBe(projectId);
+
+    rmSync(otherDir, { recursive: true, force: true });
+  });
+
+  it("GET /:id inspects a session, 404s for an unknown one", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+
+    const res = await request(app).get(`/sessions/${created.body.id as string}`);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(created.body.id);
+
+    const notFound = await request(app).get("/sessions/session_missing");
+    expect(notFound.status).toBe(404);
+    expect(notFound.body.error).toBe("SESSION_NOT_FOUND");
+  });
+
+  it("GET /:id/events returns persisted, time-ordered events", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+    await request(app)
+      .post(`/sessions/${created.body.id as string}/instructions`)
+      .send({ instruction: "do the thing" });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const res = await request(app).get(`/sessions/${created.body.id as string}/events`);
+
+    expect(res.status).toBe(200);
+    const events = res.body as DomainEvent[];
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.map((e) => e.type)).toContain("SESSION_COMPLETED");
+  });
+
+  it("POST /:id/instructions dispatches and returns a Task", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+
+    const res = await request(app)
+      .post(`/sessions/${created.body.id as string}/instructions`)
+      .send({ instruction: "fix the bug" });
+
+    expect(res.status).toBe(201);
+    expect(TaskSchema.safeParse(res.body).success).toBe(true);
+    expect(res.body.status).toBe("COMPLETED");
+  });
+
+  it("POST /:id/instructions rejects an empty instruction with 400", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+
+    const res = await request(app)
+      .post(`/sessions/${created.body.id as string}/instructions`)
+      .send({ instruction: "" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /:id/resume transitions a stopped session back to WORKING", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+    await request(app).post(`/sessions/${created.body.id as string}/stop`);
+
+    const res = await request(app).post(`/sessions/${created.body.id as string}/resume`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("WORKING");
+  });
+
+  it("POST /:id/stop stops a session", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+
+    const res = await request(app).post(`/sessions/${created.body.id as string}/stop`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("STOPPED");
+  });
+
+  it("POST /:id/cancel cancels the latest cancellable task", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+    ctx.adapter.queueInstructionOutcome(created.body.id as string, "waiting_for_permission");
+    await request(app)
+      .post(`/sessions/${created.body.id as string}/instructions`)
+      .send({ instruction: "risky" });
+
+    const res = await request(app).post(`/sessions/${created.body.id as string}/cancel`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("CANCELLED");
+  });
+
+  it("POST /:id/cancel returns 400 when there is nothing cancellable", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+
+    const res = await request(app).post(`/sessions/${created.body.id as string}/cancel`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("INVALID_CANCEL_TARGET");
+  });
+
+  it("GET /:id/tasks returns task history in order", async () => {
+    const created = await request(app).post("/sessions").send({ projectId });
+    await request(app)
+      .post(`/sessions/${created.body.id as string}/instructions`)
+      .send({ instruction: "first" });
+    await request(app)
+      .post(`/sessions/${created.body.id as string}/instructions`)
+      .send({ instruction: "second" });
+
+    const res = await request(app).get(`/sessions/${created.body.id as string}/tasks`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((t: { instruction: string }) => t.instruction)).toEqual([
+      "first",
+      "second",
+    ]);
   });
 });

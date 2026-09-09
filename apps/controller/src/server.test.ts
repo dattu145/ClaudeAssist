@@ -1,51 +1,23 @@
-import Database from "better-sqlite3";
-import { createLogger } from "@claudeops/logging";
 import { HealthResponseSchema } from "@claudeops/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
-import { createApp } from "./server.js";
-import { runMigrations } from "./db/migrate.js";
-import { SqliteProjectRepository } from "./adapters/persistence/sqlite/project-repository.js";
-import { SqliteSessionRepository } from "./adapters/persistence/sqlite/session-repository.js";
-import { SqliteEventRepository } from "./adapters/persistence/sqlite/event-repository.js";
-import { FakeClaudeSessionAdapter } from "./adapters/fake/fake-claude-session-adapter.js";
-import { ProjectRegistry } from "./domain/project/registry.js";
-import { SessionRegistry } from "./domain/session/registry.js";
-import { InProcessEventBus } from "./domain/events/bus.js";
+import { buildTestApp } from "./test-support/build-test-app.js";
 
 describe("createApp", () => {
-  let db: Database.Database;
+  let db: ReturnType<typeof buildTestApp>["db"] | undefined;
 
   afterEach(() => {
     db?.close();
   });
 
-  function buildApp(checkClaudeCli: () => Promise<boolean> = () => Promise.resolve(true)) {
-    db = new Database(":memory:");
-    runMigrations(db);
-    const logger = createLogger({ component: "test" }, { write: () => {} });
-    const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
-    const eventBus = new InProcessEventBus(logger);
-    const sessionRegistry = new SessionRegistry(
-      new SqliteSessionRepository(db),
-      new FakeClaudeSessionAdapter(logger),
-      projectRegistry,
-      eventBus
-    );
-    const eventRepository = new SqliteEventRepository(db);
-    return createApp({
-      db,
-      startedAt: Date.now(),
-      logger,
-      checkClaudeCli,
-      projectRegistry,
-      sessionRegistry,
-      eventRepository,
-    });
+  function build(checkClaudeCli: () => Promise<boolean> = () => Promise.resolve(true)) {
+    const ctx = buildTestApp(checkClaudeCli);
+    db = ctx.db;
+    return ctx.app;
   }
 
   it("GET /health returns a HealthResponseSchema-valid body", async () => {
-    const app = buildApp();
+    const app = build();
     const res = await request(app).get("/health");
 
     expect(res.status).toBe(200);
@@ -54,7 +26,7 @@ describe("createApp", () => {
   });
 
   it("returns 404 for an unknown route", async () => {
-    const app = buildApp();
+    const app = build();
     const res = await request(app).get("/nope");
 
     expect(res.status).toBe(404);

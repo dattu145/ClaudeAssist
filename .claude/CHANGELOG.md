@@ -118,3 +118,17 @@
   throw, not just a "failed" result. `SessionRegistry` untouched. No HTTP
   routes yet (page12). 200 default-suite tests passing, lint/typecheck
   clean.
+- Attempted to push page11 to `origin/main`: failed with the same 403
+  credentials issue. Commit remains local.
+- Implemented page12: full `/sessions*` REST surface (create/list/inspect,
+  events, tasks, instructions, resume, stop, cancel). Found and fixed a
+  real gap while wiring this page: `SessionRegistry.startSession`'s
+  `initialInstruction` never went through `TaskRegistry`, so a session's
+  very first instruction got no `Task` record. Fixed at the HTTP boundary
+  (`POST /sessions` starts the session bare, then dispatches separately
+  through `TaskRegistry` if an instruction was given) rather than changing
+  either registry's already-tested contract. Added
+  `TaskRegistry.cancelLatestTaskForSession` + `NoCancellableTaskError`.
+  Extracted a shared `buildTestApp` fixture after the third HTTP test file
+  needed the same setup. 216 default-suite tests passing, lint/typecheck
+  clean, plus a real manual end-to-end run against the live controller.

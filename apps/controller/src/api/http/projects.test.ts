@@ -2,20 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { createLogger } from "@claudeops/logging";
 import { ProjectSchema } from "@claudeops/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import request, { type Response } from "supertest";
 import type { Express } from "express";
-import { createApp } from "../../server.js";
-import { runMigrations } from "../../db/migrate.js";
-import { SqliteProjectRepository } from "../../adapters/persistence/sqlite/project-repository.js";
-import { SqliteSessionRepository } from "../../adapters/persistence/sqlite/session-repository.js";
-import { SqliteEventRepository } from "../../adapters/persistence/sqlite/event-repository.js";
-import { FakeClaudeSessionAdapter } from "../../adapters/fake/fake-claude-session-adapter.js";
-import { ProjectRegistry } from "../../domain/project/registry.js";
-import { SessionRegistry } from "../../domain/session/registry.js";
-import { InProcessEventBus } from "../../domain/events/bus.js";
+import { buildTestApp } from "../../test-support/build-test-app.js";
 
 describe("/projects", () => {
   let db: Database.Database;
@@ -23,27 +14,9 @@ describe("/projects", () => {
   let projectDir: string;
 
   beforeEach(() => {
-    db = new Database(":memory:");
-    runMigrations(db);
-    const logger = createLogger({ component: "test" }, { write: () => {} });
-    const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
-    const eventBus = new InProcessEventBus(logger);
-    const sessionRegistry = new SessionRegistry(
-      new SqliteSessionRepository(db),
-      new FakeClaudeSessionAdapter(logger),
-      projectRegistry,
-      eventBus
-    );
-    const eventRepository = new SqliteEventRepository(db);
-    app = createApp({
-      db,
-      startedAt: Date.now(),
-      logger,
-      checkClaudeCli: () => Promise.resolve(true),
-      projectRegistry,
-      sessionRegistry,
-      eventRepository,
-    });
+    const ctx = buildTestApp();
+    db = ctx.db;
+    app = ctx.app;
     projectDir = mkdtempSync(join(tmpdir(), "claudeops-project-"));
   });
 

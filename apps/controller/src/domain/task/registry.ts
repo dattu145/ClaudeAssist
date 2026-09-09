@@ -1,7 +1,7 @@
-import type { Task } from "@claudeops/protocol";
+import type { Task, TaskStatus } from "@claudeops/protocol";
 import type { Logger } from "@claudeops/logging";
 import type { SessionRegistry } from "../session/registry.js";
-import { TaskNotFoundError } from "../errors.js";
+import { NoCancellableTaskError, TaskNotFoundError } from "../errors.js";
 import { createTask, transitionTask } from "./entity.js";
 import { INSTRUCTION_RESULT_TO_TASK_STATUS } from "./outcome.js";
 import type { TaskRepository } from "./repository.js";
@@ -57,6 +57,27 @@ export class TaskRegistry {
   async cancelTask(id: string): Promise<Task> {
     const task = await this.getTask(id);
     return this.applyAndPersist(task, "CANCELLED");
+  }
+
+  /**
+   * Cancels the most recent still-cancellable task for a session (used by
+   * POST /sessions/:id/cancel — page12). "Cancellable" is the same set
+   * TASK_STATUS_TRANSITIONS allows -> CANCELLED from: QUEUED, DISPATCHING,
+   * WAITING. A RUNNING task (a truly in-flight dispatch) is deliberately
+   * not considered here — see page11's Risks: cancelling that needs
+   * adapter-level cancellation, out of scope.
+   */
+  async cancelLatestTaskForSession(sessionId: string): Promise<Task> {
+    await this.sessionRegistry.getSession(sessionId); // throws SessionNotFoundError if unknown
+
+    const CANCELLABLE_STATUSES: readonly TaskStatus[] = ["QUEUED", "DISPATCHING", "WAITING"];
+    const tasks = await this.repository.listBySession(sessionId);
+    const cancellable = [...tasks].reverse().find((t) => CANCELLABLE_STATUSES.includes(t.status));
+
+    if (!cancellable) {
+      throw new NoCancellableTaskError(sessionId);
+    }
+    return this.cancelTask(cancellable.id);
   }
 
   private async applyAndPersist(task: Task, target: Task["status"]): Promise<Task> {

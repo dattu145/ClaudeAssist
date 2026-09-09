@@ -12,7 +12,7 @@ import { FakeClaudeSessionAdapter } from "../../adapters/fake/fake-claude-sessio
 import { ProjectRegistry } from "../project/registry.js";
 import { SessionRegistry } from "../session/registry.js";
 import { InProcessEventBus } from "../events/bus.js";
-import { SessionNotFoundError, TaskNotFoundError } from "../errors.js";
+import { NoCancellableTaskError, SessionNotFoundError, TaskNotFoundError } from "../errors.js";
 import { TaskRegistry } from "./registry.js";
 
 describe("TaskRegistry", () => {
@@ -148,5 +148,38 @@ describe("TaskRegistry", () => {
     const result = await taskRegistry.cancelTask(task.id);
 
     expect(result.status).toBe("COMPLETED");
+  });
+
+  describe("cancelLatestTaskForSession", () => {
+    it("cancels the most recent cancellable task", async () => {
+      await taskRegistry.dispatchInstruction(sessionId, "first, completes");
+      adapter.queueInstructionOutcome(sessionId, "waiting_for_permission");
+      const waiting = await taskRegistry.dispatchInstruction(sessionId, "second, waits");
+
+      const cancelled = await taskRegistry.cancelLatestTaskForSession(sessionId);
+
+      expect(cancelled.id).toBe(waiting.id);
+      expect(cancelled.status).toBe("CANCELLED");
+    });
+
+    it("throws NoCancellableTaskError when no task is cancellable", async () => {
+      await taskRegistry.dispatchInstruction(sessionId, "already completed");
+
+      await expect(taskRegistry.cancelLatestTaskForSession(sessionId)).rejects.toBeInstanceOf(
+        NoCancellableTaskError
+      );
+    });
+
+    it("throws NoCancellableTaskError when the session has no tasks at all", async () => {
+      await expect(taskRegistry.cancelLatestTaskForSession(sessionId)).rejects.toBeInstanceOf(
+        NoCancellableTaskError
+      );
+    });
+
+    it("throws SessionNotFoundError for an unknown session", async () => {
+      await expect(
+        taskRegistry.cancelLatestTaskForSession("session_missing")
+      ).rejects.toBeInstanceOf(SessionNotFoundError);
+    });
   });
 });

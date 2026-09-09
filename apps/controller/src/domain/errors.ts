@@ -41,6 +41,15 @@ export class TaskNotFoundError extends DomainError {
   }
 }
 
+export class NoCancellableTaskError extends DomainError {
+  readonly code = "INVALID_CANCEL_TARGET";
+
+  constructor(sessionId: string) {
+    super(`No cancellable task for session: ${sessionId}`);
+    this.name = "NoCancellableTaskError";
+  }
+}
+
 export function domainErrorHttpStatus(error: DomainError): number {
   if (error.code.endsWith("_NOT_FOUND")) {
     return 404;

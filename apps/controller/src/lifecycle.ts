@@ -7,10 +7,12 @@ import { runMigrations } from "./db/migrate.js";
 import { createApp } from "./server.js";
 import { SqliteProjectRepository } from "./adapters/persistence/sqlite/project-repository.js";
 import { SqliteSessionRepository } from "./adapters/persistence/sqlite/session-repository.js";
+import { SqliteTaskRepository } from "./adapters/persistence/sqlite/task-repository.js";
 import { SqliteEventRepository } from "./adapters/persistence/sqlite/event-repository.js";
 import { ClaudeCodeAdapter } from "./adapters/claude-code/claude-code-adapter.js";
 import { ProjectRegistry } from "./domain/project/registry.js";
 import { SessionRegistry } from "./domain/session/registry.js";
+import { TaskRegistry } from "./domain/task/registry.js";
 import { InProcessEventBus } from "./domain/events/bus.js";
 import { wireEventPersistence } from "./domain/events/wire-persistence.js";
 
@@ -43,6 +45,11 @@ export function startController(config: Config, logger: Logger): Controller {
     projectRegistry,
     eventBus
   );
+  const taskRegistry = new TaskRegistry(
+    new SqliteTaskRepository(db),
+    sessionRegistry,
+    logger.child({ component: "task-registry" })
+  );
 
   const app = createApp({
     db,
@@ -50,6 +57,7 @@ export function startController(config: Config, logger: Logger): Controller {
     logger: logger.child({ component: "http" }),
     projectRegistry,
     sessionRegistry,
+    taskRegistry,
     eventRepository,
   });
 
