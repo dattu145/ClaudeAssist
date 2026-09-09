@@ -15,6 +15,7 @@ import { SessionRegistry } from "./domain/session/registry.js";
 import { TaskRegistry } from "./domain/task/registry.js";
 import { InProcessEventBus } from "./domain/events/bus.js";
 import { wireEventPersistence } from "./domain/events/wire-persistence.js";
+import { attachWebSocketServer } from "./api/ws/server.js";
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -65,6 +66,8 @@ export function startController(config: Config, logger: Logger): Controller {
     logger.info("controller listening", { port: config.PORT });
   });
 
+  const wss = attachWebSocketServer(server, eventBus, logger.child({ component: "ws" }));
+
   let stopped = false;
   const stop = (): Promise<void> => {
     if (stopped) {
@@ -80,11 +83,20 @@ export function startController(config: Config, logger: Logger): Controller {
       }, SHUTDOWN_TIMEOUT_MS);
       forceTimer.unref();
 
-      server.close(() => {
-        clearTimeout(forceTimer);
-        db.close();
-        logger.info("controller stopped");
-        resolve();
+      // wss.close() alone neither closes already-open sockets nor the
+      // shared http.Server — terminate clients explicitly and close the
+      // WS server before the HTTP server, so shutdown never hangs on a
+      // lingering connection.
+      for (const client of wss.clients) {
+        client.terminate();
+      }
+      wss.close(() => {
+        server.close(() => {
+          clearTimeout(forceTimer);
+          db.close();
+          logger.info("controller stopped");
+          resolve();
+        });
       });
     });
   };

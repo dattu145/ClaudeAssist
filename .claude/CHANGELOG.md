@@ -132,3 +132,14 @@
   Extracted a shared `buildTestApp` fixture after the third HTTP test file
   needed the same setup. 216 default-suite tests passing, lint/typecheck
   clean, plus a real manual end-to-end run against the live controller.
+- Attempted to push page12 to `origin/main`: failed with the same 403
+  credentials issue. Commit remains local.
+- Implemented page13: `attachWebSocketServer` shares the existing HTTP
+  server (`/ws` path) and broadcasts every published `DomainEvent` to
+  connected clients as `packages/protocol`'s already-defined `WsEnvelope`
+  protocol. Per-connection subscribe/unsubscribe session filtering, and a
+  ping/pong heartbeat (interval injectable for tests) that terminates dead
+  connections. `lifecycle.ts` shutdown now explicitly terminates open WS
+  connections before closing the WS and HTTP servers. No auth yet
+  (page14). 225 default-suite tests passing (including real `node:http` +
+  real `ws`-client integration tests), plus a real manual end-to-end run.

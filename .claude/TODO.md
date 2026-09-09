@@ -33,5 +33,6 @@
       Page10 and page11 commits are local-only on `main` until resolved.
 - [x] Write `.claude/plans/page11.md` and implement (Task system)
 - [x] Write `.claude/plans/page12.md` and implement (REST API completion)
-- [ ] Write `.claude/plans/page13.md` and implement (WebSocket API)
-- [ ] Push page10 + page11 + page12 to origin/main once access is fixed
+- [x] Write `.claude/plans/page13.md` and implement (WebSocket API)
+- [ ] Write `.claude/plans/page14.md` and implement (pairing & auth)
+- [ ] Push page10 + page11 + page12 + page13 to origin/main once access is fixed
