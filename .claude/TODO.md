@@ -17,6 +17,9 @@
       domain entities)
 - [x] Committed and pushed page5 to origin/main
 - [x] Write `.claude/plans/page6.md` and implement (Project Registry)
-- [ ] Write `.claude/plans/page7.md` and implement (FakeClaudeSessionAdapter
+- [x] Committed and pushed page6 to origin/main
+- [x] Write `.claude/plans/page7.md` and implement (FakeClaudeSessionAdapter
       + ClaudeSessionAdapter interface)
-- [ ] User: review/commit page6 (not yet committed)
+- [ ] Write `.claude/plans/page8.md` and implement (ClaudeCodeAdapter, the
+      real implementation)
+- [ ] User: review/commit page7 (not yet committed)

@@ -52,3 +52,12 @@
   in `server.ts`'s error handler so later pages (session/task registries)
   can add new error types without touching the HTTP layer again. 98 tests
   passing, lint/typecheck clean.
+- Committed and pushed page6 to `origin/main`.
+- Implemented page7: `ClaudeSessionAdapter` port
+  (`domain/session/adapter.ts`) and `FakeClaudeSessionAdapter`
+  (`adapters/fake/`), built before the real Claude Code adapter so page9+
+  can be developed and tested without shelling out to the real CLI. The
+  fake drives sessions through the real page5 state machine, is scriptable
+  via `queueInstructionOutcome`, and models a synchronous per-session event
+  subscription. Added `SessionNotFoundError`. 110 tests passing,
+  lint/typecheck clean.

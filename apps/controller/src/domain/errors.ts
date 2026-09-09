@@ -5,7 +5,7 @@
  * anything else -> 500.
  *
  * Other error types from the spec's ERROR HANDLING list
- * (SessionNotFoundError, SessionNotReadyError, ClaudeCodeUnavailableError,
+ * (SessionNotReadyError, ClaudeCodeUnavailableError,
  * InstructionDispatchError, PermissionRequiredError, PairingError,
  * UnsupportedOperationError) are added when the page that needs them lands,
  * not speculatively here.
@@ -20,6 +20,15 @@ export class ProjectNotFoundError extends DomainError {
   constructor(projectId: string) {
     super(`Project not found: ${projectId}`);
     this.name = "ProjectNotFoundError";
+  }
+}
+
+export class SessionNotFoundError extends DomainError {
+  readonly code = "SESSION_NOT_FOUND";
+
+  constructor(sessionId: string) {
+    super(`Session not found: ${sessionId}`);
+    this.name = "SessionNotFoundError";
   }
 }
 
