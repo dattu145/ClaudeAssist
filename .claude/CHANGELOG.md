@@ -143,3 +143,15 @@
   connections before closing the WS and HTTP servers. No auth yet
   (page14). 225 default-suite tests passing (including real `node:http` +
   real `ws`-client integration tests), plus a real manual end-to-end run.
+- Attempted to push page13 to `origin/main`: failed with the same 403
+  credentials issue. Commit remains local.
+- Implemented page14: pairing code issuance (fresh 8-char code every
+  startup, logged, 10-min TTL, single-use, invalidates prior-run codes) +
+  `POST /pairing/exchange` (public) + `POST /pairing/revoke`
+  (authenticated) + `createAuthMiddleware` gating every route except
+  `GET /health` and `/pairing/*`. Tokens stored SHA-256-hashed at rest,
+  never plaintext. Wired up `packages/config`'s previously-unused
+  `PAIRING_TOKEN_TTL`. `startController` became `async`. Every existing
+  HTTP route test now authenticates. 264 default-suite tests passing,
+  lint/typecheck clean, plus a real manual end-to-end run of the full
+  pairing/revoke flow against the live controller.

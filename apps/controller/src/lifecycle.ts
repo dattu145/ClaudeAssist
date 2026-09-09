@@ -16,6 +16,8 @@ import { TaskRegistry } from "./domain/task/registry.js";
 import { InProcessEventBus } from "./domain/events/bus.js";
 import { wireEventPersistence } from "./domain/events/wire-persistence.js";
 import { attachWebSocketServer } from "./api/ws/server.js";
+import { SqlitePairingRepository } from "./adapters/persistence/sqlite/pairing-repository.js";
+import { PairingRegistry } from "./domain/pairing/registry.js";
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -25,7 +27,7 @@ export interface Controller {
   stop: () => Promise<void>;
 }
 
-export function startController(config: Config, logger: Logger): Controller {
+export async function startController(config: Config, logger: Logger): Promise<Controller> {
   const db = openDatabase(config.DATA_DIR);
   const applied = runMigrations(db);
   if (applied.length > 0) {
@@ -34,6 +36,13 @@ export function startController(config: Config, logger: Logger): Controller {
 
   const startedAt = Date.now();
   const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
+
+  const pairingRegistry = new PairingRegistry(
+    new SqlitePairingRepository(db),
+    logger.child({ component: "pairing" }),
+    config.PAIRING_TOKEN_TTL
+  );
+  await pairingRegistry.issueStartupCode();
 
   const eventBus = new InProcessEventBus(logger.child({ component: "event-bus" }));
   const eventRepository = new SqliteEventRepository(db);
@@ -60,6 +69,7 @@ export function startController(config: Config, logger: Logger): Controller {
     sessionRegistry,
     taskRegistry,
     eventRepository,
+    pairingRegistry,
   });
 
   const server = app.listen(config.PORT, () => {

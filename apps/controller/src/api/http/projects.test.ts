@@ -11,12 +11,14 @@ import { buildTestApp } from "../../test-support/build-test-app.js";
 describe("/projects", () => {
   let db: Database.Database;
   let app: Express;
+  let authToken: string;
   let projectDir: string;
 
-  beforeEach(() => {
-    const ctx = buildTestApp();
+  beforeEach(async () => {
+    const ctx = await buildTestApp();
     db = ctx.db;
     app = ctx.app;
+    authToken = ctx.authToken;
     projectDir = mkdtempSync(join(tmpdir(), "claudeops-project-"));
   });
 
@@ -25,10 +27,14 @@ describe("/projects", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
+  function auth(req: request.Test): request.Test {
+    return req.set("Authorization", `Bearer ${authToken}`);
+  }
+
   it("creates a project and returns 201 with a schema-valid body", async () => {
-    const res: Response = await request(app)
-      .post("/projects")
-      .send({ name: "Website", path: projectDir });
+    const res: Response = await auth(
+      request(app).post("/projects").send({ name: "Website", path: projectDir })
+    );
 
     expect(res.status).toBe(201);
     expect(ProjectSchema.safeParse(res.body).success).toBe(true);
@@ -37,25 +43,25 @@ describe("/projects", () => {
   });
 
   it("rejects a nonexistent path with 400", async () => {
-    const res = await request(app)
-      .post("/projects")
-      .send({ name: "Ghost", path: join(projectDir, "does-not-exist") });
+    const res = await auth(
+      request(app).post("/projects").send({ name: "Ghost", path: join(projectDir, "does-not-exist") })
+    );
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("INVALID_PROJECT_PATH");
   });
 
   it("rejects an invalid body with 400", async () => {
-    const res = await request(app).post("/projects").send({ name: "" });
+    const res = await auth(request(app).post("/projects").send({ name: "" }));
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("invalid_request");
   });
 
   it("lists created projects", async () => {
-    await request(app).post("/projects").send({ name: "Website", path: projectDir });
+    await auth(request(app).post("/projects").send({ name: "Website", path: projectDir }));
 
-    const res = await request(app).get("/projects");
+    const res = await auth(request(app).get("/projects"));
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -63,20 +69,27 @@ describe("/projects", () => {
   });
 
   it("inspects a project by id", async () => {
-    const created = await request(app)
-      .post("/projects")
-      .send({ name: "Website", path: projectDir });
+    const created = await auth(
+      request(app).post("/projects").send({ name: "Website", path: projectDir })
+    );
 
-    const res = await request(app).get(`/projects/${created.body.id as string}`);
+    const res = await auth(request(app).get(`/projects/${created.body.id as string}`));
 
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(created.body.id);
   });
 
   it("returns 404 for an unknown project id", async () => {
-    const res = await request(app).get("/projects/project_does-not-exist");
+    const res = await auth(request(app).get("/projects/project_does-not-exist"));
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("PROJECT_NOT_FOUND");
+  });
+
+  it("rejects an unauthenticated request with 401", async () => {
+    const res = await request(app).get("/projects");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("UNAUTHORIZED");
   });
 });

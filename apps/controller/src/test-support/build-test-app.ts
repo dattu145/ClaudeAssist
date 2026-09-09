@@ -12,6 +12,8 @@ import { SessionRegistry } from "../domain/session/registry.js";
 import { TaskRegistry } from "../domain/task/registry.js";
 import { InProcessEventBus } from "../domain/events/bus.js";
 import { wireEventPersistence } from "../domain/events/wire-persistence.js";
+import { SqlitePairingRepository } from "../adapters/persistence/sqlite/pairing-repository.js";
+import { PairingRegistry } from "../domain/pairing/registry.js";
 import { createApp } from "../server.js";
 
 export interface TestAppContext {
@@ -20,18 +22,24 @@ export interface TestAppContext {
   projectRegistry: ProjectRegistry;
   sessionRegistry: SessionRegistry;
   taskRegistry: TaskRegistry;
+  pairingRegistry: PairingRegistry;
   adapter: FakeClaudeSessionAdapter;
+  /** A valid bearer token, already issued — most route tests just need to
+   * authenticate, not exercise the pairing flow itself. */
+  authToken: string;
 }
 
 /**
  * Shared route-test fixture: real (in-memory) SQLite repositories behind
  * FakeClaudeSessionAdapter, matching what a running controller wires
  * (lifecycle.ts) but without touching the real claude CLI. Extracted
- * page12 after the third HTTP test file needed the identical setup.
+ * page12 after the third HTTP test file needed the identical setup;
+ * page14 added pairing/auth wiring so every non-pairing route test can
+ * authenticate with `authToken`.
  */
-export function buildTestApp(
+export async function buildTestApp(
   checkClaudeCli: () => Promise<boolean> = () => Promise.resolve(true)
-): TestAppContext {
+): Promise<TestAppContext> {
   const db = new Database(":memory:");
   runMigrations(db);
   const logger = createLogger({ component: "test" }, { write: () => {} });
@@ -49,6 +57,7 @@ export function buildTestApp(
     eventBus
   );
   const taskRegistry = new TaskRegistry(new SqliteTaskRepository(db), sessionRegistry, logger);
+  const pairingRegistry = new PairingRegistry(new SqlitePairingRepository(db), logger, 2_592_000);
 
   const app = createApp({
     db,
@@ -59,7 +68,20 @@ export function buildTestApp(
     sessionRegistry,
     taskRegistry,
     eventRepository,
+    pairingRegistry,
   });
 
-  return { app, db, projectRegistry, sessionRegistry, taskRegistry, adapter };
+  const code = await pairingRegistry.issueStartupCode();
+  const { token: authToken } = await pairingRegistry.exchangeCode(code);
+
+  return {
+    app,
+    db,
+    projectRegistry,
+    sessionRegistry,
+    taskRegistry,
+    pairingRegistry,
+    adapter,
+    authToken,
+  };
 }

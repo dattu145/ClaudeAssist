@@ -5,5 +5,5 @@ import { startController, registerShutdownHandlers } from "./lifecycle.js";
 const config = loadConfig();
 const logger = createLogger({ component: "controller" }, { minLevel: config.LOG_LEVEL });
 
-const controller = startController(config, logger);
+const controller = await startController(config, logger);
 registerShutdownHandlers(controller, logger);

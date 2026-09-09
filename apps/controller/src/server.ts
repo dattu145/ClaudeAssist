@@ -5,10 +5,13 @@ import { getHealth, type HealthDeps } from "./health.js";
 import { DomainError, domainErrorHttpStatus } from "./domain/errors.js";
 import { createProjectsRouter } from "./api/http/projects.js";
 import { createSessionsRouter } from "./api/http/sessions.js";
+import { createPairingRouter } from "./api/http/pairing.js";
+import { createAuthMiddleware } from "./api/http/auth-middleware.js";
 import type { ProjectRegistry } from "./domain/project/registry.js";
 import type { SessionRegistry } from "./domain/session/registry.js";
 import type { TaskRegistry } from "./domain/task/registry.js";
 import type { EventRepository } from "./domain/events/repository.js";
+import type { PairingRegistry } from "./domain/pairing/registry.js";
 
 export interface AppDeps extends HealthDeps {
   logger: Logger;
@@ -16,6 +19,7 @@ export interface AppDeps extends HealthDeps {
   sessionRegistry: SessionRegistry;
   taskRegistry: TaskRegistry;
   eventRepository: EventRepository;
+  pairingRegistry: PairingRegistry;
 }
 
 declare module "express-serve-static-core" {
@@ -41,6 +45,11 @@ export function createApp(deps: AppDeps): Express {
       .then((health) => res.json(health))
       .catch((err: unknown) => next(err));
   });
+
+  app.use("/pairing", createPairingRouter(deps.pairingRegistry));
+
+  // Everything below requires a valid, unexpired, unrevoked bearer token.
+  app.use(createAuthMiddleware(deps.pairingRegistry));
 
   app.use("/projects", createProjectsRouter(deps.projectRegistry));
   app.use(

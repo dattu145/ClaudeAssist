@@ -1,15 +1,23 @@
 # Security
 
-## Pairing (mobile <-> controller auth)
-- Controller generates a short-lived pairing code on startup (printed to
-  controller stdout/log), plus a `PairingRepository`-backed record.
-- Mobile app exchanges the pairing code for a long-lived auth token over the
-  local network on first connect; token stored via Expo SecureStore.
-- All REST/WS requests after pairing require the token (bearer header /
-  WS handshake auth). Unauthenticated requests to anything beyond
-  `GET /health` and the pairing endpoint are rejected.
-- Pairing tokens are revocable from controller-side settings (future mobile
-  Settings screen action).
+## Pairing (mobile <-> controller auth) — implemented page14
+- Controller generates a fresh 8-char pairing code on every startup
+  (logged at `info` level; any code from a previous run is invalidated),
+  10-minute TTL, single-use. `PairingRepository`-backed
+  (`pairing_codes`/`pairing_tokens` tables, no FK to domain data).
+- `POST /pairing/exchange` (unauthenticated, alongside `GET /health`)
+  trades a valid code for a long-lived bearer token
+  (`packages/config`'s `PAIRING_TOKEN_TTL`, default 30 days). The raw
+  token is returned exactly once, at exchange time.
+- **Tokens are stored hashed (SHA-256) at rest, never in plaintext** —
+  verified via hash lookup, not a plaintext/timing-sensitive comparison.
+- Every route except `GET /health` and `/pairing/*` requires
+  `Authorization: Bearer <token>` (`createAuthMiddleware`, mounted before
+  `/projects` and `/sessions`); an unauthenticated or invalid/expired/
+  revoked request gets `401 {"error":"UNAUTHORIZED"}`.
+- `POST /pairing/revoke` (itself authenticated) revokes the token used to
+  call it — the "log out this device" action. Mobile-side secure storage
+  of the token (Expo SecureStore) is a page17+ concern, not this page's.
 
 ## Secrets
 - Anthropic credentials, shell credentials, filesystem secrets: **never** in

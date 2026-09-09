@@ -50,6 +50,15 @@ export class NoCancellableTaskError extends DomainError {
   }
 }
 
+export class PairingCodeInvalidError extends DomainError {
+  readonly code = "INVALID_PAIRING_CODE";
+
+  constructor() {
+    super("Pairing code is invalid, expired, or already used");
+    this.name = "PairingCodeInvalidError";
+  }
+}
+
 export function domainErrorHttpStatus(error: DomainError): number {
   if (error.code.endsWith("_NOT_FOUND")) {
     return 404;
