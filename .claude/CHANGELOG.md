@@ -193,3 +193,23 @@
   96s (and sometimes timing out) without losing real-integration coverage,
   reverified via a fresh manual end-to-end run. 298 default-suite tests
   passing, lint/typecheck clean.
+- Attempted to push page16 to `origin/main`: still 403 (same stored-
+  credential issue). Commit remains local.
+- Implemented page17: mobile foundation. `expo-router` file-based
+  navigation, a pairing screen (the only thing an unpaired device can
+  reach), `expo-secure-store`-backed token/URL storage, and a
+  `ConnectionBadge` connection-state indicator polling `GET /health` on a
+  bounded, unmount-cleared interval. `ConnectionProvider` gates the app:
+  unpaired shows only `pairing.tsx`, paired reveals the `(tabs)` group
+  (Dashboard/Projects/Sessions/Settings placeholders — real data is
+  page18). Pairing calls the real `POST /pairing/exchange` using
+  `@claudeops/protocol`'s schemas directly. Found and fixed a real
+  monorepo dependency-hoisting bug installing `expo-router`: a transitive
+  dep pulled `react@19.3.0` at the workspace root while `apps/mobile`
+  needed the SDK-pinned `19.2.3` — two copies installed, caught by
+  `expo-doctor`'s duplicate-dependency check. Fixed with a root `package.
+  json` `overrides` pin, confirmed via a full clean reinstall. Verified:
+  `expo-doctor` 21/21, `tsc --noEmit` clean, root typecheck/lint/test still
+  green after the reinstall (298 tests), Metro bundler boots cleanly. No
+  device/simulator testing possible in this environment (documented, same
+  as page1).

@@ -37,8 +37,9 @@
 - [x] Write `.claude/plans/page14.md` and implement (pairing & auth)
 - [x] Write `.claude/plans/page15.md` and implement (ProcessDiscoveryService)
 - [x] Write `.claude/plans/page16.md` and implement (startup reconciliation)
-- [ ] Write `.claude/plans/page17.md` and implement (mobile foundation)
+- [x] Write `.claude/plans/page17.md` and implement (mobile foundation)
+- [ ] Write `.claude/plans/page18.md` and implement (mobile dashboard + real data)
 - [ ] **User: fix stored HTTPS git credential** (not just `git config
       user.name` — that alone didn't fix the push) so `leadsprogress` isn't
       used, or grant it push access to `dattu145/ClaudeAssist`
-- [ ] Push page10 through page16 to origin/main once access is fixed
+- [ ] Push page10 through page17 to origin/main once access is fixed
