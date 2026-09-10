@@ -160,6 +160,46 @@ describe("SessionRegistry", () => {
     expect(published).toContain("SESSION_COMPLETED");
   });
 
+  it("resumeSession rehydrates a session the adapter doesn't know about (simulates a restart) and forwards its events to the bus", async () => {
+    const started = await sessionRegistry.startSession({ projectId });
+    await sessionRegistry.stopSession(started.id);
+
+    // A fresh adapter/registry sharing the same SQLite repository —
+    // exactly what a real restart produces (page16): the persisted
+    // session exists, the adapter's in-memory record does not.
+    const freshAdapter = new FakeClaudeSessionAdapter(
+      createLogger({ component: "test" }, { write: () => {} })
+    );
+    const freshEventBus = new InProcessEventBus(createLogger({ component: "test" }, { write: () => {} }));
+    const freshSessionRegistry = new SessionRegistry(
+      new SqliteSessionRepository(db),
+      freshAdapter,
+      projectRegistry,
+      freshEventBus
+    );
+    const published: string[] = [];
+    freshEventBus.subscribe((e) => published.push(e.type));
+
+    const resumed = await freshSessionRegistry.resumeSession(started.id);
+    expect(resumed.status).toBe("WORKING");
+
+    await freshSessionRegistry.sendInstruction(started.id, "continue");
+    expect(published).toContain("SESSION_OUTPUT");
+    expect(published).toContain("SESSION_COMPLETED");
+  });
+
+  it("does not double-subscribe (no duplicate event delivery) for a session already known to the adapter", async () => {
+    const started = await sessionRegistry.startSession({ projectId });
+    const published: string[] = [];
+    eventBus.subscribe((e) => published.push(e.type));
+
+    await sessionRegistry.sendInstruction(started.id, "first");
+    await sessionRegistry.sendInstruction(started.id, "second");
+
+    const completedCount = published.filter((t) => t === "SESSION_COMPLETED").length;
+    expect(completedCount).toBe(2); // one per dispatch, not doubled by a duplicate subscription
+  });
+
   it("does not miss the initial-instruction dispatch's events (the page10 timing fix)", async () => {
     const published: string[] = [];
     eventBus.subscribe((e) => published.push(e.type));

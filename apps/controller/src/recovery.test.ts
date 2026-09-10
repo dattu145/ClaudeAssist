@@ -115,6 +115,31 @@ describe("recovery: a real restart against the same on-disk database", () => {
     const recovered = (await recoveredRes.json()) as { status: string };
     expect(recovered.status).toBe("DISCONNECTED");
 
+    // The actual fix under test: a DISCONNECTED session must be
+    // resumable on the fresh instance, not just correctly labeled.
+    // Before the session-resume-after-restart fix, this would have
+    // thrown SessionNotFoundError — instance B's adapter has zero
+    // memory of a session created by instance A.
+    const resumeRes = await fetch(`${baseUrlB}/sessions/${session.id}/resume`, {
+      method: "POST",
+      headers: authHeadersB,
+    });
+    expect(resumeRes.status).toBe(200);
+    const resumed = (await resumeRes.json()) as { status: string };
+    expect(resumed.status).toBe("WORKING");
+
+    // And a real instruction on the resumed session must complete
+    // normally — proof the adapter's rehydrated record is actually
+    // usable, not just enough to pass the status transition.
+    const instructionRes = await fetch(`${baseUrlB}/sessions/${session.id}/instructions`, {
+      method: "POST",
+      headers: { ...authHeadersB, "content-type": "application/json" },
+      body: JSON.stringify({ instruction: "continue after restart" }),
+    });
+    expect(instructionRes.status).toBe(201);
+    const task = (await instructionRes.json()) as { status: string };
+    expect(task.status).toBe("COMPLETED");
+
     await controllerB.stop();
   });
 

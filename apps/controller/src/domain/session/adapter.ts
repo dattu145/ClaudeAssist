@@ -91,5 +91,17 @@ export interface ClaudeSessionAdapter {
    * unknown id, same as `getStatus`.
    */
   getSession(sessionId: string): Promise<ClaudeSession>;
+  /**
+   * Populates the adapter's in-memory record for a session from
+   * persisted state, without any CLI/network I/O — the missing half of
+   * "a fresh adapter instance has no memory of old sessions" (page16).
+   * `SessionRegistry` calls this before a mutating call
+   * (resumeSession/sendInstruction/stopSession) whose session the
+   * adapter doesn't already know about, so a `DISCONNECTED` session
+   * (the one status `SESSION_STATUS_TRANSITIONS` documents transitioning
+   * *to* `STARTING`) can actually be resumed after a restart. Idempotent
+   * — a no-op if the adapter already knows about this session.
+   */
+  rehydrate(session: ClaudeSession, projectPath: string): Promise<void>;
   subscribe(sessionId: string, handler: SessionEventHandler): Unsubscribe;
 }

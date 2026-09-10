@@ -439,3 +439,46 @@
   language updated to reflect the implemented, verified-safe state), plus
   a Phase 2 close-out section in `PROGRESS.md`. 392 tests passing (+1
   new), typecheck/lint clean. **Phase 2 is complete.**
+- **Git push access fixed** by the user — pages 10 through pageB5 (17
+  pages, dozens of commits) pushed to `origin/main` for the first time.
+- Voice architecture audit (user-requested, not a Phase 3 start):
+  reviewed every "voice" reference in the codebase (four, all
+  doc-comments or the `EVENT_SOURCES` enum literal — no `IntentResolver`
+  implementation exists anywhere). Confirmed `CommandRouter` is already
+  proven provider-agnostic by pageB4's Bordio poller, a real independent
+  non-mobile `Command` source added with zero changes to `CommandRouter`/
+  `Command`/`SessionRegistry`/`TaskRegistry`. Documented what a future
+  STT/TTS provider layer would need (an `SttProvider` feeding
+  `IntentResolver.resolve(text)`, a `VoiceNotificationService` mirroring
+  `BordioNotificationService` for TTS output) and the one failure mode to
+  avoid — letting a provider-specific shape leak past the adapter layer
+  into `domain/command`/`domain/notification`. Written up in
+  `research/voice.md`.
+- Fixed the session-resume-after-restart gap pageB5's audit found (not a
+  roadmap page — a standalone fix, both phases already closed):
+  `SESSION_STATUS_TRANSITIONS` documents `DISCONNECTED -> STARTING` as
+  valid, but `SessionRegistry.resumeSession`/`sendInstruction`/
+  `stopSession` called straight into `ClaudeSessionAdapter`, whose
+  in-memory record is only ever populated by `startSession` — a fresh
+  adapter instance after any restart had zero memory of a previously-
+  created session. Added `ClaudeSessionAdapter.rehydrate(session,
+  projectPath)` (populates the in-memory record from persisted state, no
+  I/O, idempotent), implemented in both `ClaudeCodeAdapter` and
+  `FakeClaudeSessionAdapter`. `SessionRegistry` gained
+  `ensureAdapterKnowsSession`, used by all three mutating methods: it
+  rehydrates the adapter when needed and re-establishes the
+  adapter-event-to-event-bus subscription (guarded against
+  double-subscribing, which would otherwise have delivered every event
+  twice) that only `startSession` used to set up. For the real adapter
+  this correctly restores `--resume <claudeSessionId>` on the next
+  dispatch — `transitionSession` already preserved `claudeSessionId`
+  through every status change, it just never reached the adapter. A
+  pre-existing `task/registry.test.ts` test turned out to have been
+  unknowingly asserting the *buggy* behavior as correct — rewritten into
+  two tests, one proving the fix, one preserving the original intent via
+  a purpose-built throwing adapter. `recovery.test.ts` gained the real
+  end-to-end proof: a session disconnected by one controller instance's
+  reconciliation is actually resumed and dispatches a real instruction to
+  completion on a second, genuinely fresh instance sharing the same
+  on-disk database. 399 tests passing (+7 new), typecheck/lint clean.
+  `RISKS.md`'s row updated from "found, not fixed" to fixed.

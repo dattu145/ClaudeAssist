@@ -1,6 +1,7 @@
 import { createLogger } from "@claudeops/logging";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SessionNotFoundError } from "../../domain/errors.js";
+import { createSession } from "../../domain/session/entity.js";
 import type { SessionAdapterEvent } from "../../domain/session/adapter.js";
 import { FakeClaudeSessionAdapter } from "./fake-claude-session-adapter.js";
 
@@ -145,6 +146,24 @@ describe("FakeClaudeSessionAdapter", () => {
     expect(events.some((e) => e.type === "status_changed")).toBe(true);
     expect(events.some((e) => e.type === "output")).toBe(true);
     expect(events.some((e) => e.type === "completed")).toBe(true);
+  });
+
+  it("rehydrate populates an in-memory record from a persisted session, resuming it", async () => {
+    const persisted = { ...createSession({ projectId: "project_1" }), status: "DISCONNECTED" as const };
+
+    await adapter.rehydrate(persisted, "/x");
+    const resumed = await adapter.resumeSession(persisted.id);
+
+    expect(resumed.status).toBe("WORKING");
+  });
+
+  it("rehydrate is a no-op when the adapter already knows the session", async () => {
+    const started = await adapter.startSession({ projectId: "project_1", projectPath: "/x" });
+    const stale = { ...started, currentTask: "should be ignored" };
+
+    await adapter.rehydrate(stale, "/x");
+
+    expect(await adapter.getSession(started.id)).toEqual(started);
   });
 
   it("stops delivering events after unsubscribe", async () => {

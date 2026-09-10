@@ -28,6 +28,12 @@ export interface StartSessionRegistryInput {
  * (production).
  */
 export class SessionRegistry {
+  /** Session ids already subscribed to the adapter's event stream in
+   * this process — guards ensureSubscribed against double-subscribing
+   * (subscribe() has no dedupe semantics of its own, so a second call
+   * for the same session would deliver every event twice). */
+  private readonly subscribedSessionIds = new Set<string>();
+
   constructor(
     private readonly repository: SessionRepository,
     private readonly adapter: ClaudeSessionAdapter,
@@ -46,9 +52,7 @@ export class SessionRegistry {
     // adapter.startSession itself, before it returns — subscribing
     // afterward would silently miss all of them.
     const sessionId = generateId("session");
-    this.adapter.subscribe(sessionId, (event) => {
-      this.eventBus.publish(translateSessionEvent({ id: sessionId, projectId: project.id }, event));
-    });
+    this.ensureSubscribed(sessionId, project.id);
 
     const session = await this.adapter.startSession({
       projectId: project.id,
@@ -77,20 +81,20 @@ export class SessionRegistry {
   }
 
   async sendInstruction(sessionId: string, instruction: string): Promise<InstructionResult> {
-    await this.getSession(sessionId);
+    await this.ensureAdapterKnowsSession(sessionId);
     const result = await this.adapter.sendInstruction(sessionId, instruction);
     await this.syncFromAdapter(sessionId);
     return result;
   }
 
   async resumeSession(sessionId: string): Promise<ClaudeSession> {
-    await this.getSession(sessionId);
+    await this.ensureAdapterKnowsSession(sessionId);
     await this.adapter.resumeSession(sessionId);
     return this.syncFromAdapter(sessionId);
   }
 
   async stopSession(sessionId: string): Promise<void> {
-    await this.getSession(sessionId);
+    await this.ensureAdapterKnowsSession(sessionId);
     await this.adapter.stopSession(sessionId);
     await this.syncFromAdapter(sessionId);
   }
@@ -105,5 +109,40 @@ export class SessionRegistry {
     const current = await this.adapter.getSession(sessionId);
     await this.repository.update(current);
     return current;
+  }
+
+  private ensureSubscribed(sessionId: string, projectId: string): void {
+    if (this.subscribedSessionIds.has(sessionId)) {
+      return;
+    }
+    this.subscribedSessionIds.add(sessionId);
+    this.adapter.subscribe(sessionId, (event) => {
+      this.eventBus.publish(translateSessionEvent({ id: sessionId, projectId }, event));
+    });
+  }
+
+  /** The persisted record always exists-or-throws (SessionNotFoundError)
+   * regardless of restarts — SQLite, not the adapter, is the source of
+   * truth for "does this session exist at all." What this actually
+   * ensures is that the *adapter* has a working in-memory record too,
+   * rehydrating it from persisted state on a fresh instance's first
+   * touch of a session it doesn't recognize (page16: every restart
+   * starts with an empty adapter). */
+  private async ensureAdapterKnowsSession(sessionId: string): Promise<ClaudeSession> {
+    const persisted = await this.getSession(sessionId);
+
+    try {
+      await this.adapter.getSession(sessionId);
+      return persisted;
+    } catch (err) {
+      if (!(err instanceof SessionNotFoundError)) {
+        throw err;
+      }
+    }
+
+    const project = await this.projectRegistry.getProject(persisted.projectId);
+    await this.adapter.rehydrate(persisted, project.path);
+    this.ensureSubscribed(sessionId, persisted.projectId);
+    return persisted;
   }
 }

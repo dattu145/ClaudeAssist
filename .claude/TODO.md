@@ -27,10 +27,11 @@
 - [x] Write `.claude/plans/page9.md` and implement (Session Registry)
 - [x] Committed and pushed page9 to origin/main
 - [x] Write `.claude/plans/page10.md` and implement (event system + EventRepository)
-- [ ] **User: fix git push access** — `git push origin main` fails with
-      403; cached credentials on this machine are for GitHub account
-      `leadsprogress`, which lacks push access to `dattu145/ClaudeAssist`.
-      Page10 and page11 commits are local-only on `main` until resolved.
+- [x] **User: fix git push access** — fixed 2026-09-10; `git push origin main`
+      now works. (`git config user.name` is still `riteshvividview`, not
+      `dattu145` — I don't modify git config per the Git Safety Protocol;
+      that's a separate change the user would need to make themselves if
+      commit author identity matters to them.)
 - [x] Write `.claude/plans/page11.md` and implement (Task system)
 - [x] Write `.claude/plans/page12.md` and implement (REST API completion)
 - [x] Write `.claude/plans/page13.md` and implement (WebSocket API)
@@ -39,10 +40,8 @@
 - [x] Write `.claude/plans/page16.md` and implement (startup reconciliation)
 - [x] Write `.claude/plans/page17.md` and implement (mobile foundation)
 - [x] Write `.claude/plans/page18.md` and implement (mobile dashboard + real data)
-- [ ] **User: fix stored HTTPS git credential** (not just `git config
-      user.name` — that alone didn't fix the push) so `leadsprogress` isn't
-      used, or grant it push access to `dattu145/ClaudeAssist`
-- [ ] Push page10 through pageB5 to origin/main once access is fixed
+- [x] **User: fix stored HTTPS git credential** — fixed 2026-09-10
+- [x] Push page10 through pageB5 (and everything since) to origin/main
 - [x] Write `.claude/plans/page19.md` and implement (NotificationService)
 - [x] Write `.claude/plans/page20.md` and implement (CommandRouter/IntentResolver interfaces)
 - [x] Write `.claude/plans/page21.md` and implement (24/7 hardening & reliability pass — final Phase 1 page)
@@ -60,6 +59,11 @@
 - [x] **Phase 2 complete** — no pageB6 in this roadmap
 - [ ] Get a real Bordio API key/workspace to run `bordio-client.real.test.ts`
       for real (currently written but unverified against the live API)
-- [ ] Fix the session-resume-after-restart gap found during pageB5's audit
-      (`RISKS.md` — pre-existing since page7/page16, not Bordio-specific)
+- [x] Fix the session-resume-after-restart gap found during pageB5's audit
+      (fixed 2026-09-10: `ClaudeSessionAdapter.rehydrate` +
+      `SessionRegistry.ensureAdapterKnowsSession`, verified in
+      `recovery.test.ts`)
+- [x] Voice architecture audit — `research/voice.md` updated; confirmed
+      `CommandRouter`/`IntentResolver` stay decoupled from any future
+      STT/TTS provider
 - [ ] Scope Phase 3 (voice) when the user is ready

@@ -113,6 +113,14 @@ export class ClaudeCodeAdapter implements ClaudeSessionAdapter {
     return this.requireSession(sessionId);
   }
 
+  async rehydrate(session: ClaudeSession, projectPath: string): Promise<void> {
+    if (this.sessions.has(session.id)) {
+      return;
+    }
+    this.sessions.set(session.id, session);
+    this.projectPaths.set(session.id, projectPath);
+  }
+
   subscribe(sessionId: string, handler: SessionEventHandler): Unsubscribe {
     const set = this.listeners.get(sessionId) ?? new Set();
     set.add(handler);

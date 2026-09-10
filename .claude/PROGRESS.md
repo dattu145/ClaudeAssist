@@ -20,12 +20,10 @@
   pageB3 (BordioNotificationService, outbound), pageB4 (inbound Bordio
   command polling), pageB5 (Phase 2 hardening pass) — **Phase 2 complete**.
 **Active work**: none — both roadmaps are closed (no page22, no pageB6)
-**Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
-  still failing with 403 (the stored HTTPS credential is tied to a
-  different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through pageB5 commits are sitting
-  locally on `main`, unpushed. User needs to fix the stored HTTPS
-  credential (or grant push access) before the next push.
+**Blocked work**: none currently. **Git push access is fixed** —
+  confirmed working 2026-09-10 (the user resolved the stored credential
+  issue on their end); pages 10 through pageB5, the voice architecture
+  audit, and this session-resume fix are all pushed to `origin/main`.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
   transitive deps (Expo scaffold + better-sqlite3 + expo-router's own
   deps) — not yet triaged; do not run `npm audit fix --force` without
@@ -36,18 +34,10 @@
   integration has only been verified against `FakeBordioClient`, never a
   real Bordio workspace. pageB4's inbound commands only work on Bordio
   tasks pageB3 already linked to a session — starting a brand-new session
-  purely from Bordio isn't supported. A core (non-Bordio) gap found during
-  pageB5's audit: a session marked `DISCONNECTED` by startup reconciliation
-  currently cannot actually be resumed (`RISKS.md` — the adapter has no
-  way to reconstruct its in-memory record on a resume call, only on
-  `startSession`) — pre-existing since page7/page16, not introduced by
-  Phase 2, not fixed here (out of scope for a Bordio hardening pass).
-**Next action**: none from either roadmap — Phase 1 and Phase 2 are both
-  done. Real next steps: fix git push access, get a real Bordio API
-  key/workspace to verify the integration for real, fix the
-  session-resume-after-restart gap `RISKS.md` documents, or scope Phase 3
-  (voice, per research/voice.md's own numbering) whenever the user is
-  ready.
+  purely from Bordio isn't supported.
+**Next action**: none queued. Real next steps whenever the user wants
+  them: get a real Bordio API key/workspace to verify the integration for
+  real, or scope Phase 3 (voice, per research/voice.md's own numbering).
 
 ## Phase 2 close-out
 
@@ -90,18 +80,64 @@ still Phase 1's original non-goals, untouched by this phase.
 **Known limitations carried forward:**
 - No real Bordio workspace/key available anywhere in this environment —
   every layer is verified against `FakeBordioClient` only.
-- The session-resume-after-restart gap (see above) — real, pre-existing,
-  not Bordio-specific, not fixed in this phase.
+- ~~The session-resume-after-restart gap~~ — **fixed** immediately after
+  this phase closed, by the user's request; see the milestone entry
+  below and `RISKS.md`'s updated row.
 - `BordioInboundPoller.pollOnce()` only processes one page of
   command-tagged tasks per tick (self-correcting, not broken, but
   throughput-bounded under a large backlog).
 
-**The one item genuinely outside my control:** git push access — pages
-10 through pageB5 (17 pages, dozens of commits) are complete, tested,
-and committed locally on `main`, waiting to be pushed once the stored
-credential issue is resolved.
+**Git push access (was the one item genuinely outside my control):**
+**fixed** 2026-09-10, shortly after this phase closed — pages 10 through
+pageB5 (17 pages, dozens of commits), the voice architecture audit, and
+the session-resume fix below are all pushed to `origin/main`.
 
-**Last completed milestone**: pageB5 implemented and verified
+**Last completed milestone**: session-resume-after-restart fix
+(2026-09-10, `fix-session-resume-after-restart` — not a roadmap page,
+both are closed; a standalone fix the user requested after the voice
+audit) — closed the real gap pageB5's audit found: `SESSION_STATUS_
+TRANSITIONS` documents `DISCONNECTED -> STARTING` as valid, but
+`SessionRegistry.resumeSession`/`sendInstruction`/`stopSession` all
+called straight into `ClaudeSessionAdapter`, whose in-memory record is
+only ever populated by `startSession` — a fresh adapter instance after
+any restart had zero memory of a previously-created session, so these
+calls threw `SessionNotFoundError` for exactly the sessions
+reconciliation had just marked `DISCONNECTED`.
+
+Fixed with one new port method, `ClaudeSessionAdapter.rehydrate(session,
+projectPath)` — populates the in-memory record from persisted state, no
+CLI/network I/O, idempotent — implemented identically in
+`ClaudeCodeAdapter` and `FakeClaudeSessionAdapter`. `SessionRegistry`
+gained `ensureAdapterKnowsSession`, called by all three mutating methods
+in place of their old bare existence check: it rehydrates the adapter
+when needed and re-establishes the adapter-event-to-event-bus
+subscription (`ensureSubscribed`, guarded by a `Set<string>` against
+double-subscribing — `subscribe()` has no dedupe of its own, so a naive
+resubscribe would have delivered every event twice) that only
+`startSession` used to set up. For the real adapter, this is what makes
+a resumed session's next dispatch correctly pass `--resume
+<claudeSessionId>` — `transitionSession` already preserves
+`claudeSessionId` through every status change, including reconciliation's
+`DISCONNECTED` one, so the persisted row had what was needed all along;
+it just never reached the adapter.
+
+A pre-existing test (`task/registry.test.ts`) turned out to have been
+unknowingly asserting the *buggy* behavior as correct (a session known
+to the repository but not the adapter throwing `SessionNotFoundError`)
+— rewritten into two tests: one proving the fixed rehydration behavior,
+one preserving the original intent (TaskRegistry marks a task `FAILED`
+and re-throws when dispatch fails) via a purpose-built throwing adapter
+instead of relying on the now-fixed bug as the trigger. `recovery.test.ts`
+gained the real proof: a session disconnected by instance A's
+reconciliation is actually resumed (`WORKING`, a real dispatched
+instruction, `COMPLETED`) on a genuinely fresh instance B sharing the
+same on-disk database — not just status-checked, actually used.
+
+Verified: 399 tests passing (+7 new), typecheck/lint clean. `RISKS.md`'s
+row updated from "found, not fixed" to fixed, with the verification
+method spelled out.
+
+**Previous milestone**: pageB5 implemented and verified
 (2026-09-10) — the final Phase 2 page, same shape as page21: a pass over
 pageB1-B4, not a new feature. Bounded-memory audit of `BordioApiClient`/
 `BordioNotificationService`/`BordioInboundPoller` found nothing new to

@@ -134,6 +134,53 @@ describe("ClaudeCodeAdapter", () => {
     expect(calls[1]).not.toContain("--session-id");
   });
 
+  it("rehydrate populates an in-memory record and a subsequent dispatch uses its claudeSessionId with --resume", async () => {
+    const claudeSessionId = "rehydrated-session-abc";
+    const persisted = {
+      id: "session_rehydrated",
+      projectId: "p1",
+      claudeSessionId,
+      status: "DISCONNECTED" as const,
+      currentTask: null,
+      processId: null,
+      terminalId: null,
+      lastOutput: null,
+      lastError: null,
+      startedAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    };
+    const { runCli, calls } = makeScriptedRunCli([
+      { stdout: streamJsonFor({ sessionId: claudeSessionId, text: "resumed" }), stderr: "", exitCode: 0 },
+    ]);
+    const adapter = new ClaudeCodeAdapter(silentLogger(), runCli);
+
+    await adapter.rehydrate(persisted, "/x");
+    const resumed = await adapter.resumeSession(persisted.id);
+    expect(resumed.status).toBe("WORKING");
+
+    const result = await adapter.sendInstruction(persisted.id, "continue");
+
+    expect(result.status).toBe("completed");
+    expect(calls[0]).toContain("--resume");
+    expect(calls[0]).toContain(claudeSessionId);
+  });
+
+  it("rehydrate is a no-op when the adapter already knows the session", async () => {
+    const { runCli } = makeScriptedRunCli([
+      { stdout: streamJsonFor({ sessionId: "s1", text: "hi" }), stderr: "", exitCode: 0 },
+    ]);
+    const adapter = new ClaudeCodeAdapter(silentLogger(), runCli);
+    const started = await adapter.startSession({
+      projectId: "p1",
+      projectPath: "/x",
+      initialInstruction: "hi",
+    });
+
+    await adapter.rehydrate({ ...started, currentTask: "should be ignored" }, "/x");
+
+    expect(await adapter.getSession(started.id)).toEqual(started);
+  });
+
   it("maps a failed result to FAILED and surfaces the error", async () => {
     const claudeSessionId = "s1";
     const { runCli } = makeScriptedRunCli([

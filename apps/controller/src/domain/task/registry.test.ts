@@ -90,31 +90,57 @@ describe("TaskRegistry", () => {
     expect(await taskRegistry.listTasksForSession("session_missing")).toEqual([]);
   });
 
-  it("marks the task FAILED and re-throws when sendInstruction itself throws mid-dispatch", async () => {
-    // A session known to the registry's repository but unknown to the
-    // adapter (constructed directly, bypassing startSession) reproduces
-    // sendInstruction throwing *after* the task was already created.
-    const foreignAdapter = new FakeClaudeSessionAdapter(
+  it("a session known to the repository but not yet to the adapter is transparently rehydrated (the fix for the session-resume-after-restart bug)", async () => {
+    // Reproduces exactly what a restart looks like: a fresh adapter
+    // instance with zero in-memory memory of a session the shared
+    // SQLite repository already has. SessionRegistry.ensureAdapterKnowsSession
+    // must rehydrate it rather than throwing SessionNotFoundError.
+    const freshAdapter = new FakeClaudeSessionAdapter(
       createLogger({ component: "test" }, { write: () => {} })
     );
-    const foreignSessionRegistry = new SessionRegistry(
+    const freshSessionRegistry = new SessionRegistry(
       new SqliteSessionRepository(db),
-      foreignAdapter,
+      freshAdapter,
       new ProjectRegistry(new SqliteProjectRepository(db)),
       new InProcessEventBus(createLogger({ component: "test" }, { write: () => {} }))
     );
-    const foreignTaskRegistry = new TaskRegistry(
+    const freshTaskRegistry = new TaskRegistry(
       new SqliteTaskRepository(db),
-      foreignSessionRegistry,
+      freshSessionRegistry,
       createLogger({ component: "test" }, { write: () => {} })
     );
-    // sessionId exists in the shared SQLite repository (getSession succeeds)
-    // but foreignAdapter never started it (sendInstruction throws).
-    await expect(
-      foreignTaskRegistry.dispatchInstruction(sessionId, "hi")
-    ).rejects.toBeInstanceOf(SessionNotFoundError);
 
-    const tasks = await foreignTaskRegistry.listTasksForSession(sessionId);
+    const task = await freshTaskRegistry.dispatchInstruction(sessionId, "hi");
+
+    expect(task.status).toBe("COMPLETED");
+  });
+
+  it("marks the task FAILED and re-throws when sendInstruction itself throws mid-dispatch", async () => {
+    class ThrowingOnSendInstructionAdapter extends FakeClaudeSessionAdapter {
+      override async sendInstruction(): Promise<never> {
+        throw new Error("adapter exploded mid-dispatch");
+      }
+    }
+    const throwingAdapter = new ThrowingOnSendInstructionAdapter(
+      createLogger({ component: "test" }, { write: () => {} })
+    );
+    const throwingSessionRegistry = new SessionRegistry(
+      new SqliteSessionRepository(db),
+      throwingAdapter,
+      new ProjectRegistry(new SqliteProjectRepository(db)),
+      new InProcessEventBus(createLogger({ component: "test" }, { write: () => {} }))
+    );
+    const throwingTaskRegistry = new TaskRegistry(
+      new SqliteTaskRepository(db),
+      throwingSessionRegistry,
+      createLogger({ component: "test" }, { write: () => {} })
+    );
+
+    await expect(throwingTaskRegistry.dispatchInstruction(sessionId, "hi")).rejects.toThrow(
+      "adapter exploded mid-dispatch"
+    );
+
+    const tasks = await throwingTaskRegistry.listTasksForSession(sessionId);
     expect(tasks).toHaveLength(1);
     expect(tasks[0]?.status).toBe("FAILED");
   });
