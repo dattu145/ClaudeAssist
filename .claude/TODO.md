@@ -47,4 +47,8 @@
 - [x] Write `.claude/plans/page20.md` and implement (CommandRouter/IntentResolver interfaces)
 - [x] Write `.claude/plans/page21.md` and implement (24/7 hardening & reliability pass — final Phase 1 page)
 - [x] **Phase 1 complete** — no page22 in this roadmap
-- [ ] Scope Phase 2 (voice/Bordio/WhatsApp/multi-user) when the user is ready
+- [x] Scope Phase 2 — Bordio integration chosen; research/bordio.md,
+      decisions/ADR-006.md, and MASTER_PLAN.md's Phase 2 page sequence
+      (pageB1-B5) written
+- [ ] **User: approve the Phase 2 (Bordio) proposal** before any pageB1
+      implementation starts — same approval gate Phase 1 required upfront

@@ -28,10 +28,10 @@
   deps) — not yet triaged; do not run `npm audit fix --force` without
   review, it can silently change majors. See also the Phase 1 close-out's
   documented limitations below.
-**Next action**: none from this roadmap — Phase 1 is done. Next steps are
-  either fixing git push access, or scoping Phase 2 (voice/Bordio/
-  WhatsApp/multi-user — all explicitly out of Phase 1) whenever the user
-  wants to start that.
+**Next action**: **awaiting user approval of the Phase 2 (Bordio) proposal**
+  — research/bordio.md, decisions/ADR-006.md, and MASTER_PLAN.md's Phase 2
+  page sequence (pageB1-B5) are written; per the same rule Phase 1 used,
+  no pageB1 implementation starts until the user approves the proposal.
 
 ## Phase 1 close-out
 
