@@ -1,8 +1,12 @@
 import { createServer, type Server } from "node:http";
+import Database from "better-sqlite3";
 import { createLogger } from "@claudeops/logging";
 import type { DomainEvent } from "@claudeops/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { runMigrations } from "../../db/migrate.js";
+import { SqlitePairingRepository } from "../../adapters/persistence/sqlite/pairing-repository.js";
+import { PairingRegistry } from "../../domain/pairing/registry.js";
 import { InProcessEventBus } from "../../domain/events/bus.js";
 import { attachWebSocketServer } from "./server.js";
 
@@ -33,15 +37,26 @@ function waitForMessage(ws: WebSocket): Promise<unknown> {
 }
 
 describe("attachWebSocketServer", () => {
+  let db: Database.Database;
+  let pairingRegistry: PairingRegistry;
+  let validToken: string;
   let httpServer: Server;
   let bus: InProcessEventBus;
   let port: number;
   let clients: WebSocket[];
 
   beforeEach(async () => {
+    db = new Database(":memory:");
+    runMigrations(db);
+    pairingRegistry = new PairingRegistry(new SqlitePairingRepository(db), silentLogger(), 3600);
+    const code = await pairingRegistry.issueStartupCode();
+    validToken = (await pairingRegistry.exchangeCode(code)).token;
+
     httpServer = createServer();
     bus = new InProcessEventBus(silentLogger());
-    attachWebSocketServer(httpServer, bus, silentLogger(), { heartbeatIntervalMs: 50_000 });
+    attachWebSocketServer(httpServer, bus, pairingRegistry, silentLogger(), {
+      heartbeatIntervalMs: 50_000,
+    });
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     port = (httpServer.address() as { port: number }).port;
     clients = [];
@@ -52,13 +67,42 @@ describe("attachWebSocketServer", () => {
       client.terminate();
     }
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    db.close();
   });
 
-  function connect(): WebSocket {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+  function connect(token: string | null = validToken): WebSocket {
+    const url =
+      token === null ? `ws://127.0.0.1:${port}/ws` : `ws://127.0.0.1:${port}/ws?token=${token}`;
+    const ws = new WebSocket(url);
     clients.push(ws);
     return ws;
   }
+
+  it("rejects a connection with no token", async () => {
+    const ws = connect(null);
+    const result = await new Promise<"open" | "close">((resolve) => {
+      ws.once("open", () => resolve("open"));
+      ws.once("close", () => resolve("close"));
+      ws.once("error", () => resolve("close"));
+    });
+    expect(result).toBe("close");
+  });
+
+  it("rejects a connection with an invalid token", async () => {
+    const ws = connect("not-a-real-token");
+    const result = await new Promise<"open" | "close">((resolve) => {
+      ws.once("open", () => resolve("open"));
+      ws.once("close", () => resolve("close"));
+      ws.once("error", () => resolve("close"));
+    });
+    expect(result).toBe("close");
+  });
+
+  it("accepts a connection with a valid token", async () => {
+    const ws = connect(validToken);
+    await waitForOpen(ws);
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+  });
 
   it("broadcasts a published event to a connected client by default", async () => {
     const ws = connect();
@@ -137,11 +181,13 @@ describe("attachWebSocketServer", () => {
   // client survives multiple heartbeat cycles without being terminated.
   it("does not terminate a healthy client across multiple heartbeat intervals", async () => {
     const heartbeatServer = createServer();
-    attachWebSocketServer(heartbeatServer, bus, silentLogger(), { heartbeatIntervalMs: 30 });
+    attachWebSocketServer(heartbeatServer, bus, pairingRegistry, silentLogger(), {
+      heartbeatIntervalMs: 30,
+    });
     await new Promise<void>((resolve) => heartbeatServer.listen(0, resolve));
     const heartbeatPort = (heartbeatServer.address() as { port: number }).port;
 
-    const ws = new WebSocket(`ws://127.0.0.1:${heartbeatPort}/ws`);
+    const ws = new WebSocket(`ws://127.0.0.1:${heartbeatPort}/ws?token=${validToken}`);
     clients.push(ws);
     await waitForOpen(ws);
 

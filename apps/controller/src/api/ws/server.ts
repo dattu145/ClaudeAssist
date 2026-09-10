@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Logger } from "@claudeops/logging";
 import type { EventBus } from "../../domain/events/bus.js";
+import type { PairingRegistry } from "../../domain/pairing/registry.js";
 import { translateToWsEnvelope } from "./translate-to-ws-envelope.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -25,6 +26,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * the server holding a zombie one open (see .claude/plans/page13.md — no
  * event replay/backfill on reconnect; pair a reconnect with
  * GET /sessions/:id/events for history).
+ *
+ * Requires `?token=<pairing token>` on the connection URL (page18: this
+ * server attaches to the raw http.Server's `upgrade` event, so Express's
+ * auth middleware — page14 — never runs for it; found and fixed once
+ * mobile became the first real WS consumer). React Native's `WebSocket`
+ * doesn't support custom headers on connect the way node's `ws` client
+ * does, so a query param is the practical choice here.
  */
 export interface AttachWebSocketServerOptions {
   heartbeatIntervalMs?: number;
@@ -33,11 +41,26 @@ export interface AttachWebSocketServerOptions {
 export function attachWebSocketServer(
   httpServer: Server,
   eventBus: EventBus,
+  pairingRegistry: PairingRegistry,
   logger: Logger,
   options: AttachWebSocketServerOptions = {}
 ): WebSocketServer {
   const heartbeatIntervalMs = options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  const wss = new WebSocketServer({
+    server: httpServer,
+    path: "/ws",
+    verifyClient: (info, callback) => {
+      const token = new URL(info.req.url ?? "", "http://internal").searchParams.get("token");
+      if (!token) {
+        callback(false, 401, "missing token");
+        return;
+      }
+      pairingRegistry
+        .verifyToken(token)
+        .then((valid) => callback(valid, valid ? undefined : 401, valid ? undefined : "invalid token"))
+        .catch(() => callback(false, 401, "invalid token"));
+    },
+  });
   const clientState = new WeakMap<WebSocket, ClientState>();
 
   wss.on("connection", (ws: WebSocket) => {

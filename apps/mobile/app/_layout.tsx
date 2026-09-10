@@ -18,7 +18,17 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {isPaired ? <Stack.Screen name="(tabs)" /> : <Stack.Screen name="pairing" />}
+      {isPaired ? (
+        <>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="project/[id]" options={{ headerShown: true, title: "Project" }} />
+          <Stack.Screen name="project/new" options={{ headerShown: true, title: "New Project" }} />
+          <Stack.Screen name="session/[id]" options={{ headerShown: true, title: "Session" }} />
+          <Stack.Screen name="session/new" options={{ headerShown: true, title: "New Session" }} />
+        </>
+      ) : (
+        <Stack.Screen name="pairing" />
+      )}
     </Stack>
   );
 }

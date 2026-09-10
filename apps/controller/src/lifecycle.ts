@@ -118,7 +118,12 @@ export async function startController(
     logger.info("controller listening", { port: config.PORT });
   });
 
-  const wss = attachWebSocketServer(server, eventBus, logger.child({ component: "ws" }));
+  const wss = attachWebSocketServer(
+    server,
+    eventBus,
+    pairingRegistry,
+    logger.child({ component: "ws" })
+  );
 
   let stopped = false;
   const stop = (): Promise<void> => {

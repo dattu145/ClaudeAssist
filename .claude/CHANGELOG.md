@@ -213,3 +213,35 @@
   green after the reinstall (298 tests), Metro bundler boots cleanly. No
   device/simulator testing possible in this environment (documented, same
   as page1).
+- Implemented page18: mobile dashboard + real data. While wiring the
+  mobile app as the first real WS consumer, found that
+  `attachWebSocketServer` (page13) attaches directly to the raw
+  `http.Server`'s `upgrade` event, bypassing Express entirely — page14's
+  `createAuthMiddleware` never ran for WS connections, so any device on
+  the LAN could connect to `/ws` unauthenticated. Fixed before building on
+  it: `attachWebSocketServer` gained a `pairingRegistry` param and a `ws`
+  `verifyClient` gate requiring `/ws?token=<token>` (query param, since
+  React Native's `WebSocket` can't send custom connect headers), validated
+  via `PairingRegistry.verifyToken`; invalid/missing tokens now get the
+  upgrade rejected (401) before a socket ever opens. `server.test.ts`
+  gained real `ws`-client tests for missing/invalid/valid tokens against a
+  real in-memory-SQLite `PairingRegistry`. Built `lib/api-client.ts` (typed
+  REST client validating every request/response against
+  `@claudeops/protocol` schemas), `lib/use-live-events.ts` (WS hook,
+  exponential-backoff reconnect, bounded 100-event buffer, optional
+  per-session subscribe), and six screens: Dashboard (real summary counts
+  + live activity feed), Projects (list/create), Sessions (list/start),
+  project detail, session detail (status, live output, resume/stop/
+  cancel/send-instruction, task history, live events). Root layout now
+  pushes `project/[id]`, `project/new`, `session/[id]`, `session/new` as
+  headered stack screens over the tab group. Verified: root typecheck/
+  lint/test green (301 tests, +9 WS tests incl. 3 new token-gate cases),
+  mobile `tsc --noEmit` clean, `expo-doctor` 21/21, a real Metro/Hermes
+  bundle export (1137 modules, no errors), and a real end-to-end manual
+  check (`tsx` against a live `startController()`, not mocked) covering
+  the full mobile-client path: capture the real startup pairing code,
+  exchange it, confirm `/ws` rejects no/bad tokens and accepts a valid
+  one, create a project, start a session with an initial instruction,
+  confirm the WS client receives the live envelope for it, confirm
+  unauthenticated `/projects` is rejected. No device/simulator testing
+  possible in this environment (documented, same as page1/page17).
