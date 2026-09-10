@@ -155,3 +155,18 @@
   HTTP route test now authenticates. 264 default-suite tests passing,
   lint/typecheck clean, plus a real manual end-to-end run of the full
   pairing/revoke flow against the live controller.
+- Attempted to push page14 to `origin/main`: still 403. Confirmed the
+  issue is the stored HTTPS credential, not `git config user.name` (which
+  the user changed to `riteshvividview` — push still fails as
+  `leadsprogress`). Commit remains local.
+- Implemented page15: `ProcessDiscoveryService`
+  (`listProcesses`/`findClaudeProcesses`), the spec's OS-level process
+  abstraction, distinct from `ClaudeCodeAdapter.discoverSessions()`
+  (Claude Code's own self-reported list). Windows implementation
+  (`Get-CimInstance Win32_Process` via PowerShell, Zod-validated) verified
+  for real against this machine — found 367 processes including 2 genuine
+  `claude.exe`. POSIX implementation built for portability but honestly
+  documented as unverified (this dev environment is Windows), flagged in
+  RISKS.md. Not wired into `lifecycle.ts` yet — page16 is the consumer.
+  281 default-suite tests passing, lint/typecheck clean, grep-confirmed no
+  platform-specific command leaks outside `adapters/process-discovery/`.

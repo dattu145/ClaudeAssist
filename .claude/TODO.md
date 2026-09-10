@@ -35,5 +35,9 @@
 - [x] Write `.claude/plans/page12.md` and implement (REST API completion)
 - [x] Write `.claude/plans/page13.md` and implement (WebSocket API)
 - [x] Write `.claude/plans/page14.md` and implement (pairing & auth)
-- [ ] Write `.claude/plans/page15.md` and implement (ProcessDiscoveryService)
-- [ ] Push page10 through page14 to origin/main once access is fixed
+- [x] Write `.claude/plans/page15.md` and implement (ProcessDiscoveryService)
+- [ ] Write `.claude/plans/page16.md` and implement (startup reconciliation)
+- [ ] **User: fix stored HTTPS git credential** (not just `git config
+      user.name` — that alone didn't fix the push) so `leadsprogress` isn't
+      used, or grant it push access to `dattu145/ClaudeAssist`
+- [ ] Push page10 through page15 to origin/main once access is fixed
