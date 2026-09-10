@@ -2,8 +2,8 @@
 
 **Current phase**: Phase 2 (Bordio integration) — Phase 1 complete, see
   close-out section below.
-**Current page**: pageB1 (BordioClient adapter + FakeBordioClient) —
-  implemented and verified
+**Current page**: pageB2 (Bordio ID mapping persistence) — implemented
+  and verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -16,12 +16,12 @@
   dashboard + real data), page19 (NotificationService + domain-event
   wiring), page20 (CommandRouter/IntentResolver interfaces), page21 (24/7
   hardening & reliability pass) — **Phase 1 complete**. pageB1 (BordioClient
-  adapter + FakeBordioClient) — first Phase 2 page.
+  adapter + FakeBordioClient), pageB2 (Bordio ID mapping persistence).
 **Active work**: none
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through pageB1 commits are sitting
+  user.name` didn't fix it). Page10 through pageB2 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
@@ -32,10 +32,31 @@
   available in this environment — `bordio-client.real.test.ts` is written
   but has not been run for real anywhere yet (skipped by default, same as
   the pre-existing real-CLI suite).
-**Next action**: write `.claude/plans/pageB2.md` (Bordio ID mapping
-  persistence), then implement it.
+**Next action**: write `.claude/plans/pageB3.md` (BordioNotificationService,
+  outbound), then implement it.
 
-**Last completed milestone**: pageB1 implemented and verified
+**Last completed milestone**: pageB2 implemented and verified
+(2026-09-10) — persistence for the two pieces of state pageB3/pageB4
+both need. `db/migrations/0007_bordio.sql` adds `bordio_links` (a
+generic `(claudeops_entity_type, claudeops_entity_id) -> bordio_task_id`
+mapping, unique-indexed so a second `upsert` for the same entity updates
+rather than duplicates) and `bordio_poll_cursors` (named cursor rows —
+ETag + timestamp — for the inbound poller to short-circuit an unchanged
+poll via a real 304, deliberately not a full per-task snapshot yet,
+since that shape depends on pageB4's diff algorithm, not decided until
+that page). Mapping granularity is session-level, not task-level:
+`shouldNotify` (page19) only recognizes session-scoped events, so one
+Bordio task tracks one ClaudeOps session's lifecycle, not one per `Task`
+(which would flood a Bordio board with a card per instruction).
+`domain/bordio/{link,link-repository,poll-cursor,poll-cursor-
+repository}.ts` define the entities/interfaces; `adapters/persistence/
+sqlite/{bordio-link-repository,bordio-poll-cursor-repository}.ts`
+implement them, same row-mapping pattern every other SQLite repository
+in this codebase uses. Verified: 367 tests passing (+9 new), typecheck/
+lint clean. No lifecycle-level manual check — standalone persistence,
+not wired into a running controller yet (pageB3's job), same as pageB1.
+
+**Previous milestone**: pageB1 implemented and verified
 (2026-09-10) — the first Phase 2 page. `domain/bordio/client.ts` defines
 the `BordioClient` port (`listTasks`/`createTask`/`updateTask`/
 `listTaskStatusDefinitions`), matching the real API surface researched

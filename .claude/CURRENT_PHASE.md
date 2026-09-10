@@ -4,9 +4,10 @@
 
 Status: **Phase 1 is complete** (page21, see `PROGRESS.md`'s close-out).
 **Phase 2 (Bordio integration) is underway**: pageB1 (BordioClient
-adapter + FakeBordioClient) is implemented and verified. Local commits
-for page10 through pageB1 are unpushed — `git push` to
-`dattu145/ClaudeAssist` is still failing with 403 (the stored HTTPS
-credential is tied to a different GitHub account than the repo owner;
-changing `git config user.name` didn't fix it).
-Next: write and implement pageB2 (Bordio ID mapping persistence).
+adapter + FakeBordioClient) and pageB2 (Bordio ID mapping persistence)
+are implemented and verified. Local commits for page10 through pageB2
+are unpushed — `git push` to `dattu145/ClaudeAssist` is still failing
+with 403 (the stored HTTPS credential is tied to a different GitHub
+account than the repo owner; changing `git config user.name` didn't fix
+it).
+Next: write and implement pageB3 (BordioNotificationService, outbound).

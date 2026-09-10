@@ -351,3 +351,20 @@
   real-CLI suite has always had. Standalone, not wired into
   `lifecycle.ts` yet (pageB3's job). 358 tests passing (+25 new),
   typecheck/lint clean.
+- Implemented pageB2: Bordio ID mapping persistence. `db/migrations/
+  0007_bordio.sql` adds `bordio_links` (a generic `(claudeops_entity_type,
+  claudeops_entity_id) -> bordio_task_id` mapping, unique-indexed so a
+  second `upsert` for the same entity updates rather than duplicates) and
+  `bordio_poll_cursors` (named ETag + timestamp rows for the inbound
+  poller, pageB4, to short-circuit an unchanged poll via a real 304 —
+  deliberately minimal, not a full per-task snapshot, since that shape
+  depends on pageB4's diff algorithm which isn't decided yet). Mapping
+  granularity is session-level: `shouldNotify` (page19) only recognizes
+  session-scoped events, so one Bordio task tracks one ClaudeOps
+  session's lifecycle, not one per `Task`. `domain/bordio/{link,
+  link-repository,poll-cursor,poll-cursor-repository}.ts` define the
+  entities/interfaces; `adapters/persistence/sqlite/{bordio-link-
+  repository,bordio-poll-cursor-repository}.ts` implement them, matching
+  every other SQLite repository's pattern in this codebase. 367 tests
+  passing (+9 new), typecheck/lint clean. Standalone, not wired into
+  `lifecycle.ts` yet (pageB3's job), same as pageB1.

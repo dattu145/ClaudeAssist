@@ -52,7 +52,7 @@
       (pageB1-B5) written
 - [x] Write `.claude/plans/pageB1.md` and implement (BordioClient adapter
       + FakeBordioClient)
-- [ ] Write `.claude/plans/pageB2.md` and implement (Bordio ID mapping
+- [x] Write `.claude/plans/pageB2.md` and implement (Bordio ID mapping
       persistence)
 - [ ] Write `.claude/plans/pageB3.md` and implement (BordioNotificationService, outbound)
 - [ ] Write `.claude/plans/pageB4.md` and implement (inbound Bordio command polling)
