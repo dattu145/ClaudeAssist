@@ -1,9 +1,9 @@
 # Progress
 
-**Current phase**: Phase 2 (Bordio integration) — Phase 1 complete, see
-  close-out section below.
-**Current page**: pageB4 (inbound Bordio command polling) — implemented
-  and verified
+**Current phase**: Phase 2 (Bordio integration) — **complete**. Phase 1
+  also complete. See both close-out sections below.
+**Current page**: pageB5 (Phase 2 hardening pass) — implemented and
+  verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -18,31 +18,130 @@
   hardening & reliability pass) — **Phase 1 complete**. pageB1 (BordioClient
   adapter + FakeBordioClient), pageB2 (Bordio ID mapping persistence),
   pageB3 (BordioNotificationService, outbound), pageB4 (inbound Bordio
-  command polling).
-**Active work**: none
+  command polling), pageB5 (Phase 2 hardening pass) — **Phase 2 complete**.
+**Active work**: none — both roadmaps are closed (no page22, no pageB6)
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through pageB4 commits are sitting
+  user.name` didn't fix it). Page10 through pageB5 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
   transitive deps (Expo scaffold + better-sqlite3 + expo-router's own
   deps) — not yet triaged; do not run `npm audit fix --force` without
-  review, it can silently change majors. See also the Phase 1 close-out's
+  review, it can silently change majors. See also both close-out sections'
   documented limitations below. No real `BORDIO_API_KEY`/workspace is
   available in this environment — `bordio-client.real.test.ts` is written
-  but has not been run for real anywhere yet; both directions of the
-  Bordio integration (outbound sync, inbound polling) have only been
-  verified against `FakeBordioClient`, never a real Bordio workspace
-  (same documented limitation, not yet resolved). pageB4's inbound
-  commands only work on Bordio tasks pageB3 already linked to a session
-  (see pageB4.md's Design section) — starting a brand-new session purely
-  from Bordio isn't supported.
-**Next action**: write `.claude/plans/pageB5.md` (Phase 2 hardening
-  pass — the final Phase 2 page), then implement it.
+  but has not been run for real anywhere yet; every part of the Bordio
+  integration has only been verified against `FakeBordioClient`, never a
+  real Bordio workspace. pageB4's inbound commands only work on Bordio
+  tasks pageB3 already linked to a session — starting a brand-new session
+  purely from Bordio isn't supported. A core (non-Bordio) gap found during
+  pageB5's audit: a session marked `DISCONNECTED` by startup reconciliation
+  currently cannot actually be resumed (`RISKS.md` — the adapter has no
+  way to reconstruct its in-memory record on a resume call, only on
+  `startSession`) — pre-existing since page7/page16, not introduced by
+  Phase 2, not fixed here (out of scope for a Bordio hardening pass).
+**Next action**: none from either roadmap — Phase 1 and Phase 2 are both
+  done. Real next steps: fix git push access, get a real Bordio API
+  key/workspace to verify the integration for real, fix the
+  session-resume-after-restart gap `RISKS.md` documents, or scope Phase 3
+  (voice, per research/voice.md's own numbering) whenever the user is
+  ready.
 
-**Last completed milestone**: pageB4 implemented and verified
+## Phase 2 close-out
+
+Checked against this phase's own proposal — `research/bordio.md`,
+`decisions/ADR-006.md`, and pageB1-B5's acceptance criteria — since
+Phase 2 (unlike Phase 1) has no external spec to compare against; the
+proposal I wrote and the user approved *is* the checklist.
+
+**Delivered:**
+- `BordioClient` port + `FakeBordioClient` (pageB1), fake-before-real
+  like every adapter since page7 — the default test suite never depends
+  on real Bordio access. Real `BordioApiClient` handles auth, retry/
+  backoff (429/500, bounded), idempotency keys, conditional GETs, and
+  never logs the API key.
+- `bordio_links` (session <-> Bordio task) and `bordio_poll_cursors`
+  (ETag-based poll state) persistence (pageB2), same repository-
+  interface pattern every other piece of this project's persistence
+  uses.
+- Outbound sync (pageB3): notify-worthy session events mirror onto a
+  Bordio task per session, idempotency-keyed, auto-discovering a
+  default open/closed status so it works with just `BORDIO_API_KEY` set.
+- Inbound polling (pageB4): a user can reply to a linked Bordio task to
+  send an instruction back to ClaudeOps, through the same `CommandRouter`
+  page20 built for exactly this ("proving the abstraction before voice
+  ever needs it" — and here it is, proven).
+- Hardening (pageB5): bounded-memory/critical-path-blocking audit (clean
+  — confirmed, not assumed), a real cross-restart recovery test for the
+  `bordio_links` mapping table, and a genuinely new finding along the
+  way (the session-resume-after-restart gap, documented above and in
+  `RISKS.md`, correctly scoped as pre-existing/out-of-scope rather than
+  silently fixed or silently ignored).
+- 392 tests passing across the monorepo, typecheck/lint clean at every
+  page.
+
+**Explicitly out of scope for Phase 2** (per the approved proposal, not
+gaps): starting a brand-new session purely from Bordio (only replying to
+an already-linked task is supported); WhatsApp, voice, multi-user — all
+still Phase 1's original non-goals, untouched by this phase.
+
+**Known limitations carried forward:**
+- No real Bordio workspace/key available anywhere in this environment —
+  every layer is verified against `FakeBordioClient` only.
+- The session-resume-after-restart gap (see above) — real, pre-existing,
+  not Bordio-specific, not fixed in this phase.
+- `BordioInboundPoller.pollOnce()` only processes one page of
+  command-tagged tasks per tick (self-correcting, not broken, but
+  throughput-bounded under a large backlog).
+
+**The one item genuinely outside my control:** git push access — pages
+10 through pageB5 (17 pages, dozens of commits) are complete, tested,
+and committed locally on `main`, waiting to be pushed once the stored
+credential issue is resolved.
+
+**Last completed milestone**: pageB5 implemented and verified
+(2026-09-10) — the final Phase 2 page, same shape as page21: a pass over
+pageB1-B4, not a new feature. Bounded-memory audit of `BordioApiClient`/
+`BordioNotificationService`/`BordioInboundPoller` found nothing new to
+flag — none hold per-session/per-task in-memory state, unlike page21's
+`ClaudeCodeAdapter` finding — confirmed by reading, not assumed. Also
+confirmed `InProcessEventBus.publish()` never awaits a subscriber's async
+work, so `BordioApiClient`'s retry/backoff can never block a session
+dispatch or HTTP request. Found one real (documented, not fixed) limit:
+`BordioInboundPoller.pollOnce()` doesn't follow `nextCursor`, so a large
+backlog drains one page per poll tick rather than all at once —
+self-correcting, not broken.
+
+Closed the actual gap the roadmap named — "recovery behavior for the
+mapping table across restarts" — with `bordio-recovery.test.ts`: two
+real SQLite connections over the same on-disk database (instance A
+writes a `bordio_links` row via `BordioNotificationService.notify()`,
+closes; instance B reopens the same file with a fresh
+`FakeBordioClient`, seeded via a new `seedTask()` test hook to stand in
+for "the real Bordio task still exists remotely," and calls `notify()`
+again) proving the link survives and gets reused — the existing task is
+updated, not duplicated. While designing this test, found and documented
+a real pre-existing gap unrelated to Bordio: `SessionRegistry.
+resumeSession`/`sendInstruction`/`stopSession` all call straight through
+to the adapter, which has no way to reconstruct its in-memory record
+after a restart — meaning a session reconciliation marks `DISCONNECTED`
+currently cannot actually be resumed. Routed the recovery test around
+this (testing `bordio_links` recovery directly rather than through a
+full HTTP session-resume flow) rather than silently building on a broken
+assumption; documented in `RISKS.md` as pre-existing, out of scope for
+this Bordio-focused page.
+
+Finalized `RISKS.md` (three new rows: the resume-after-restart gap, the
+pagination limitation, and the audit's clean-bill-of-health entries) and
+`SECURITY.md` (the pageB3-era "proposed" language on `BORDIO_API_KEY`
+updated to reflect the actual implemented, verified-safe state). Verified:
+392 tests passing (+1 new), typecheck/lint clean. No real Bordio
+workspace available — same carried-forward limitation as every prior
+Phase 2 page. **Phase 2 is complete.**
+
+**Previous milestone**: pageB4 implemented and verified
 (2026-09-10) — the other direction ADR-006 named: a Bordio task can
 trigger a ClaudeOps command. Since Bordio has no webhooks, this is a
 bounded, backed-off poller (`domain/bordio/inbound-poller.ts`'s

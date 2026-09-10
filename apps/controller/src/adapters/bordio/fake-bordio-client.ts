@@ -32,6 +32,14 @@ export class FakeBordioClient implements BordioClient {
     { id: "status_done", name: "Done", state: "closed" },
   ];
 
+  /** Test-only hook, not part of the BordioClient port: inserts a task
+   * exactly as given (pageB5's recovery test uses this to stand in for
+   * "the real Bordio task still exists remotely" across a simulated
+   * restart, where instance B's fake client is a brand-new instance). */
+  seedTask(task: BordioTask): void {
+    this.tasks.set(task.id, task);
+  }
+
   async listTasks(options: ListTasksOptions = {}): Promise<ListTasksResult> {
     let tasks = [...this.tasks.values()];
     if (options.tagIds?.length) {

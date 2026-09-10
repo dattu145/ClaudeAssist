@@ -413,3 +413,29 @@
   over real HTTP. Typecheck/lint clean. No real Bordio workspace
   available — same carried-forward limitation as every prior Phase 2
   page.
+- Implemented pageB5: Phase 2 hardening pass (final Phase 2 page).
+  Bounded-memory audit of `BordioApiClient`/`BordioNotificationService`/
+  `BordioInboundPoller` found nothing new to flag — none hold
+  per-session/per-task in-memory state, unlike page21's `ClaudeCodeAdapter`
+  finding. Confirmed `InProcessEventBus.publish()` never awaits a
+  subscriber's async work, so `BordioApiClient`'s retry/backoff can never
+  block a session dispatch or HTTP request. Found one real, documented
+  (not fixed) limit: `BordioInboundPoller.pollOnce()` doesn't follow
+  `nextCursor`, so a large backlog drains one page per tick rather than
+  all at once — self-correcting, not broken. Closed the actual roadmap
+  gap — "recovery behavior for the mapping table across restarts" — with
+  `bordio-recovery.test.ts`: two real SQLite connections over the same
+  on-disk database prove a `bordio_links` row written by one instance is
+  found and reused by a second, not duplicated (`FakeBordioClient` gained
+  a `seedTask()` test hook to stand in for "the real Bordio task still
+  exists remotely"). While designing that test, found and documented a
+  real pre-existing gap unrelated to Bordio: a session reconciliation
+  marks `DISCONNECTED` currently cannot actually be resumed, because
+  `SessionRegistry`'s adapter calls require in-memory state only
+  `startSession` reconstructs — routed the recovery test around it rather
+  than silently building on a broken assumption, documented in `RISKS.md`
+  as pre-existing (page7/page16), out of scope for this page. Finalized
+  `RISKS.md` (three new rows) and `SECURITY.md` (pageB3-era "proposed"
+  language updated to reflect the implemented, verified-safe state), plus
+  a Phase 2 close-out section in `PROGRESS.md`. 392 tests passing (+1
+  new), typecheck/lint clean. **Phase 2 is complete.**

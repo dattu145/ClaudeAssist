@@ -26,11 +26,17 @@
 - `.env.example` documents every controller env var with no real values.
 - Structured logs never include secret values (redaction at the logging layer
   for known-sensitive keys).
-- **Phase 2 (proposed, not yet built)**: `BORDIO_API_KEY` follows this same
-  rule — Bordio's own docs independently require it ("server-side only");
-  when pageB1 implements it, it must be added to `packages/logging`'s
-  redaction denylist like every other secret, and never surfaces in the
-  mobile app or any REST response.
+- **Phase 2 (implemented, pageB1-B5)**: `BORDIO_API_KEY` follows this same
+  rule — Bordio's own docs independently require it ("server-side only").
+  Never appears in the mobile app or any REST response. Never logged: the
+  key is passed as a constructor param to `BordioApiClient` and is never
+  written to any log field (verified by test in `bordio-client.test.ts` —
+  "never logs the raw API key", covering retries/backoff logging too);
+  as a second layer, `packages/logging`'s existing case-insensitive
+  denylist (matches any field containing "key") would also redact it if
+  it were ever logged under a field named like that. Confirmed by pageB5's
+  audit that no code path logs the full controller `Config` object (which
+  would otherwise carry `BORDIO_API_KEY` as a field).
 
 ## Operation risk classes (READ / EXECUTE / WRITE / DESTRUCTIVE)
 The controller's REST API never allows arbitrary shell execution. Every

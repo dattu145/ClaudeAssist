@@ -42,7 +42,7 @@
 - [ ] **User: fix stored HTTPS git credential** (not just `git config
       user.name` — that alone didn't fix the push) so `leadsprogress` isn't
       used, or grant it push access to `dattu145/ClaudeAssist`
-- [ ] Push page10 through page21 to origin/main once access is fixed
+- [ ] Push page10 through pageB5 to origin/main once access is fixed
 - [x] Write `.claude/plans/page19.md` and implement (NotificationService)
 - [x] Write `.claude/plans/page20.md` and implement (CommandRouter/IntentResolver interfaces)
 - [x] Write `.claude/plans/page21.md` and implement (24/7 hardening & reliability pass — final Phase 1 page)
@@ -56,6 +56,10 @@
       persistence)
 - [x] Write `.claude/plans/pageB3.md` and implement (BordioNotificationService, outbound)
 - [x] Write `.claude/plans/pageB4.md` and implement (inbound Bordio command polling)
-- [ ] Write `.claude/plans/pageB5.md` and implement (Phase 2 hardening pass)
+- [x] Write `.claude/plans/pageB5.md` and implement (Phase 2 hardening pass)
+- [x] **Phase 2 complete** — no pageB6 in this roadmap
 - [ ] Get a real Bordio API key/workspace to run `bordio-client.real.test.ts`
       for real (currently written but unverified against the live API)
+- [ ] Fix the session-resume-after-restart gap found during pageB5's audit
+      (`RISKS.md` — pre-existing since page7/page16, not Bordio-specific)
+- [ ] Scope Phase 3 (voice) when the user is ready
