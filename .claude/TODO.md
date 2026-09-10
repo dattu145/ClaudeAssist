@@ -50,5 +50,12 @@
 - [x] Scope Phase 2 — Bordio integration chosen; research/bordio.md,
       decisions/ADR-006.md, and MASTER_PLAN.md's Phase 2 page sequence
       (pageB1-B5) written
-- [ ] **User: approve the Phase 2 (Bordio) proposal** before any pageB1
-      implementation starts — same approval gate Phase 1 required upfront
+- [x] Write `.claude/plans/pageB1.md` and implement (BordioClient adapter
+      + FakeBordioClient)
+- [ ] Write `.claude/plans/pageB2.md` and implement (Bordio ID mapping
+      persistence)
+- [ ] Write `.claude/plans/pageB3.md` and implement (BordioNotificationService, outbound)
+- [ ] Write `.claude/plans/pageB4.md` and implement (inbound Bordio command polling)
+- [ ] Write `.claude/plans/pageB5.md` and implement (Phase 2 hardening pass)
+- [ ] Get a real Bordio API key/workspace to run `bordio-client.real.test.ts`
+      for real (currently written but unverified against the live API)

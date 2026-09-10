@@ -324,3 +324,30 @@
   real file on real disk with a small byte threshold, generating traffic
   via real HTTP requests, confirmed to actually rotate on disk — not just
   asserted in-process. **Phase 1 is complete.**
+- Scoped Phase 2 (Bordio integration, user's choice among Bordio/
+  WhatsApp/multi-user/voice): researched Bordio's actual REST API against
+  their own docs (docs.bordio.com) — bearer-key auth, 120 GET/60 write
+  per-minute rate limits (per key), idempotency keys on POST, ETag
+  conditional GETs, and no webhooks yet ("a placeholder for an upcoming
+  feature" per Bordio's own docs, ruling out an event-driven inbound
+  integration). Wrote `research/bordio.md`, `decisions/ADR-006.md`
+  (outbound via the existing `NotificationService` interface is primary;
+  inbound is a bounded poller through the existing `CommandRouter`, not
+  `IntentResolver`, since Bordio tasks are structured data not free
+  text), and a proposed Phase 2 page sequence (pageB1-B5) in
+  `MASTER_PLAN.md` — no implementation, awaiting approval per the same
+  discipline Phase 1 used.
+- Implemented pageB1 (approved, first Phase 2 page): `BordioClient`
+  adapter + `FakeBordioClient`, fake-before-real (page7/page8's
+  precedent). `domain/bordio/client.ts` is the port; `adapters/bordio/
+  fake-bordio-client.ts` enforces the same idempotency-key replay/conflict
+  semantics real Bordio documents; `adapters/bordio/bordio-client.ts`
+  (`BordioApiClient`) is the real client — retries 429 (honoring
+  `Retry-After`) and 500 with bounded backoff, never retries other 4xx,
+  warns (never throws) on low `RateLimit-Remaining`, never logs the API
+  key. An opt-in `bordio-client.real.test.ts` mirrors
+  `claude-code-adapter.real.test.ts`'s pattern — written but not run (no
+  real Bordio credentials available), same documented limitation the
+  real-CLI suite has always had. Standalone, not wired into
+  `lifecycle.ts` yet (pageB3's job). 358 tests passing (+25 new),
+  typecheck/lint clean.

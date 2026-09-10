@@ -1,9 +1,9 @@
 # Progress
 
-**Current phase**: Phase 1
-**Current page**: page21 (24/7 hardening & reliability pass) —
-  implemented and verified. **Phase 1 is complete** — see the close-out
-  section below.
+**Current phase**: Phase 2 (Bordio integration) — Phase 1 complete, see
+  close-out section below.
+**Current page**: pageB1 (BordioClient adapter + FakeBordioClient) —
+  implemented and verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -15,23 +15,48 @@
   (startup reconciliation), page17 (mobile foundation), page18 (mobile
   dashboard + real data), page19 (NotificationService + domain-event
   wiring), page20 (CommandRouter/IntentResolver interfaces), page21 (24/7
-  hardening & reliability pass)
-**Active work**: none — Phase 1 roadmap is closed (no page22)
+  hardening & reliability pass) — **Phase 1 complete**. pageB1 (BordioClient
+  adapter + FakeBordioClient) — first Phase 2 page.
+**Active work**: none
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through page21 commits are sitting
+  user.name` didn't fix it). Page10 through pageB1 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
   transitive deps (Expo scaffold + better-sqlite3 + expo-router's own
   deps) — not yet triaged; do not run `npm audit fix --force` without
   review, it can silently change majors. See also the Phase 1 close-out's
-  documented limitations below.
-**Next action**: **awaiting user approval of the Phase 2 (Bordio) proposal**
-  — research/bordio.md, decisions/ADR-006.md, and MASTER_PLAN.md's Phase 2
-  page sequence (pageB1-B5) are written; per the same rule Phase 1 used,
-  no pageB1 implementation starts until the user approves the proposal.
+  documented limitations below. No real `BORDIO_API_KEY`/workspace is
+  available in this environment — `bordio-client.real.test.ts` is written
+  but has not been run for real anywhere yet (skipped by default, same as
+  the pre-existing real-CLI suite).
+**Next action**: write `.claude/plans/pageB2.md` (Bordio ID mapping
+  persistence), then implement it.
+
+**Last completed milestone**: pageB1 implemented and verified
+(2026-09-10) — the first Phase 2 page. `domain/bordio/client.ts` defines
+the `BordioClient` port (`listTasks`/`createTask`/`updateTask`/
+`listTaskStatusDefinitions`), matching the real API surface researched
+directly from Bordio's own docs (`research/bordio.md`). Built
+fake-before-real, same precedent as page7/page8:
+`adapters/bordio/fake-bordio-client.ts` is deterministic and enforces the
+same idempotency-key replay/conflict semantics real Bordio documents;
+`adapters/bordio/bordio-client.ts` (`BordioApiClient`) is the real
+`fetch`-based implementation — retries `429` (honoring `Retry-After`) and
+`500` with bounded exponential backoff, never retries other 4xx, warns
+(never throws) when `RateLimit-Remaining` runs low, and never logs the
+raw API key (verified by test, not just claimed). An opt-in
+`bordio-client.real.test.ts` exists for a real workspace/key, mirroring
+`claude-code-adapter.real.test.ts`'s pattern — not run here (no real
+Bordio credentials in this environment), documented as the same accepted
+limitation the real-CLI suite has always had. Not wired into
+`lifecycle.ts` yet — standalone, like page7, until pageB3 needs it.
+Verified: 358 tests passing (+25 new), typecheck/lint clean. No
+lifecycle-level manual check for this page (nothing is wired into a
+running controller yet) — verification is the unit-level fake/mocked-
+fetch suite itself, matching the scope pageB1.md set out.
 
 ## Phase 1 close-out
 
