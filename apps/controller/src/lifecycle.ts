@@ -18,6 +18,10 @@ import { wireEventPersistence } from "./domain/events/wire-persistence.js";
 import { wireNotifications } from "./domain/notification/wire-notifications.js";
 import { ConsoleNotificationService } from "./adapters/notification/console-notification-service.js";
 import { CommandRouter } from "./domain/command/router.js";
+import type { BordioClient } from "./domain/bordio/client.js";
+import { BordioApiClient } from "./adapters/bordio/bordio-client.js";
+import { BordioNotificationService } from "./adapters/bordio/bordio-notification-service.js";
+import { SqliteBordioLinkRepository } from "./adapters/persistence/sqlite/bordio-link-repository.js";
 import { attachWebSocketServer } from "./api/ws/server.js";
 import { SqlitePairingRepository } from "./adapters/persistence/sqlite/pairing-repository.js";
 import { PairingRegistry } from "./domain/pairing/registry.js";
@@ -45,6 +49,11 @@ export interface StartControllerOverrides {
   /** Same reasoning — /health's default check also spawns `claude
    * --version` for real. */
   checkClaudeCli?: () => Promise<boolean>;
+  /** Injectable for tests: substitute FakeBordioClient instead of a real
+   * network client even when BORDIO_API_KEY is set (pageB3). Only
+   * consulted when config.BORDIO_API_KEY is set — otherwise the Bordio
+   * integration is skipped entirely, real or fake. */
+  bordioClient?: BordioClient;
 }
 
 export async function startController(
@@ -76,6 +85,24 @@ export async function startController(
 
   const notificationService = new ConsoleNotificationService(logger.child({ component: "notification" }));
   wireNotifications(eventBus, notificationService, logger.child({ component: "notification" }));
+
+  // Off by default (decisions/ADR-006.md) — only constructed when
+  // BORDIO_API_KEY is configured, real or fake alike.
+  if (config.BORDIO_API_KEY) {
+    const bordioClient =
+      overrides.bordioClient ??
+      new BordioApiClient(config.BORDIO_API_KEY, logger.child({ component: "bordio-client" }));
+    const bordioNotificationService = new BordioNotificationService(
+      bordioClient,
+      new SqliteBordioLinkRepository(db),
+      logger.child({ component: "bordio-notification" }),
+      {
+        ...(config.BORDIO_OPEN_STATUS_ID ? { openStatusId: config.BORDIO_OPEN_STATUS_ID } : {}),
+        ...(config.BORDIO_CLOSED_STATUS_ID ? { closedStatusId: config.BORDIO_CLOSED_STATUS_ID } : {}),
+      }
+    );
+    wireNotifications(eventBus, bordioNotificationService, logger.child({ component: "bordio-notification" }));
+  }
 
   const claudeAdapter =
     overrides.claudeAdapter ?? new ClaudeCodeAdapter(logger.child({ component: "claude-code-adapter" }));

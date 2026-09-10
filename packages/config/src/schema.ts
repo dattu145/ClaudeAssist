@@ -15,6 +15,13 @@ export const ConfigSchema = z.object({
   LOG_FILE: z.string().min(1).optional(),
   LOG_MAX_FILE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
   LOG_MAX_FILES: z.coerce.number().int().positive().default(5),
+  // Unset (the default) means the Bordio integration is fully disabled
+  // (pageB3: decisions/ADR-006.md). The two status ids are optional —
+  // BordioNotificationService auto-discovers a default open/closed
+  // status when unset (research/bordio.md).
+  BORDIO_API_KEY: z.string().min(1).optional(),
+  BORDIO_OPEN_STATUS_ID: z.string().min(1).optional(),
+  BORDIO_CLOSED_STATUS_ID: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

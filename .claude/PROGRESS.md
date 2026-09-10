@@ -2,8 +2,8 @@
 
 **Current phase**: Phase 2 (Bordio integration) — Phase 1 complete, see
   close-out section below.
-**Current page**: pageB2 (Bordio ID mapping persistence) — implemented
-  and verified
+**Current page**: pageB3 (BordioNotificationService, outbound) —
+  implemented and verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -16,12 +16,13 @@
   dashboard + real data), page19 (NotificationService + domain-event
   wiring), page20 (CommandRouter/IntentResolver interfaces), page21 (24/7
   hardening & reliability pass) — **Phase 1 complete**. pageB1 (BordioClient
-  adapter + FakeBordioClient), pageB2 (Bordio ID mapping persistence).
+  adapter + FakeBordioClient), pageB2 (Bordio ID mapping persistence),
+  pageB3 (BordioNotificationService, outbound).
 **Active work**: none
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through pageB2 commits are sitting
+  user.name` didn't fix it). Page10 through pageB3 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
@@ -30,12 +31,44 @@
   review, it can silently change majors. See also the Phase 1 close-out's
   documented limitations below. No real `BORDIO_API_KEY`/workspace is
   available in this environment — `bordio-client.real.test.ts` is written
-  but has not been run for real anywhere yet (skipped by default, same as
-  the pre-existing real-CLI suite).
-**Next action**: write `.claude/plans/pageB3.md` (BordioNotificationService,
-  outbound), then implement it.
+  but has not been run for real anywhere yet, and pageB3's outbound sync
+  has only been verified against `FakeBordioClient`, never a real Bordio
+  workspace (same documented limitation, not yet resolved).
+**Next action**: write `.claude/plans/pageB4.md` (inbound Bordio command
+  polling), then implement it.
 
-**Last completed milestone**: pageB2 implemented and verified
+**Last completed milestone**: pageB3 implemented and verified
+(2026-09-10) — the first Phase 2 page that's actually visible to the
+user: session status now mirrors onto a Bordio task board.
+`domain/bordio/session-to-bordio-state.ts` maps the five notify-worthy
+event types to Bordio's universal `open`/`closed` state (the only status
+signal that means the same thing in every workspace, per
+`research/bordio.md`). `adapters/bordio/bordio-notification-service.ts`
+(`BordioNotificationService implements NotificationService`, page19's
+interface) creates one Bordio task per session on its first notify-worthy
+event (idempotency-keyed off the session id) and updates that same
+task's title/status on every subsequent one, using pageB2's
+`bordio_links` mapping to find it — auto-discovering a default
+open/closed `task_status_id` via `listTaskStatusDefinitions()` (cached
+after the first call) when `BORDIO_OPEN_STATUS_ID`/
+`BORDIO_CLOSED_STATUS_ID` aren't explicitly configured. Wired into
+`lifecycle.ts` alongside `ConsoleNotificationService` — both subscribe
+independently to the bus — but only when `BORDIO_API_KEY` is set
+(`packages/config` gained the three new vars); fully inert otherwise,
+verified by a real lifecycle-level test, not just by code review.
+`StartControllerOverrides` gained an injectable `bordioClient` so tests
+substitute `FakeBordioClient` instead of real network access even with
+`BORDIO_API_KEY` set. Verified: 382 tests passing (+21 new, including
+two permanent `lifecycle.test.ts` integration cases — a real
+`startController()`, real HTTP calls, and assertions against both the
+fake client and the real SQLite `bordio_links` table — kept in the
+suite rather than a throwaway manual-check script, since they exercise
+exactly the scenario a scratch script would have). Typecheck/lint clean.
+No real Bordio workspace available in this environment — outbound sync
+is verified against `FakeBordioClient` only, documented as the same
+carried-forward limitation as pageB1/pageB2.
+
+**Previous milestone**: pageB2 implemented and verified
 (2026-09-10) — persistence for the two pieces of state pageB3/pageB4
 both need. `db/migrations/0007_bordio.sql` adds `bordio_links` (a
 generic `(claudeops_entity_type, claudeops_entity_id) -> bordio_task_id`

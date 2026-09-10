@@ -34,6 +34,22 @@ describe("loadConfig", () => {
     );
   });
 
+  it("Bordio config vars are unset by default and accepted when provided", () => {
+    const defaultConfig = loadConfig({});
+    expect(defaultConfig.BORDIO_API_KEY).toBeUndefined();
+    expect(defaultConfig.BORDIO_OPEN_STATUS_ID).toBeUndefined();
+    expect(defaultConfig.BORDIO_CLOSED_STATUS_ID).toBeUndefined();
+
+    const configured = loadConfig({
+      BORDIO_API_KEY: "brd_sk_live_test",
+      BORDIO_OPEN_STATUS_ID: "status_open",
+      BORDIO_CLOSED_STATUS_ID: "status_closed",
+    });
+    expect(configured.BORDIO_API_KEY).toBe("brd_sk_live_test");
+    expect(configured.BORDIO_OPEN_STATUS_ID).toBe("status_open");
+    expect(configured.BORDIO_CLOSED_STATUS_ID).toBe("status_closed");
+  });
+
   it("accepts PORT=0 (delegates to the OS for an ephemeral port)", () => {
     expect(loadConfig({ PORT: "0" }).PORT).toBe(0);
   });

@@ -368,3 +368,23 @@
   every other SQLite repository's pattern in this codebase. 367 tests
   passing (+9 new), typecheck/lint clean. Standalone, not wired into
   `lifecycle.ts` yet (pageB3's job), same as pageB1.
+- Implemented pageB3: `BordioNotificationService` (outbound sync) — the
+  first Phase 2 page actually visible to the user. `domain/bordio/
+  session-to-bordio-state.ts` maps the five notify-worthy event types to
+  Bordio's universal `open`/`closed` state. `adapters/bordio/
+  bordio-notification-service.ts` implements `NotificationService`
+  (page19): creates one Bordio task per session on its first
+  notify-worthy event (idempotency-keyed off the session id), updates
+  that same task's title/status on every subsequent one via pageB2's
+  `bordio_links` mapping, and auto-discovers a default open/closed
+  `task_status_id` (cached) when not explicitly configured. Wired into
+  `lifecycle.ts` alongside `ConsoleNotificationService`, only when
+  `BORDIO_API_KEY` is set (`packages/config` gained `BORDIO_API_KEY`/
+  `BORDIO_OPEN_STATUS_ID`/`BORDIO_CLOSED_STATUS_ID`); fully inert
+  otherwise. `StartControllerOverrides` gained an injectable
+  `bordioClient` for tests. 382 tests passing (+21 new), including two
+  permanent `lifecycle.test.ts` integration cases (real
+  `startController()`, real HTTP, real SQLite assertions) rather than a
+  throwaway manual-check script. Typecheck/lint clean. No real Bordio
+  workspace available — verified against `FakeBordioClient` only, same
+  carried-forward limitation as pageB1/pageB2.

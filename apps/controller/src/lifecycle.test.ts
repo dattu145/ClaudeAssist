@@ -7,6 +7,7 @@ import { createLogger } from "@claudeops/logging";
 import { afterEach, describe, expect, it } from "vitest";
 import { startController, type StartControllerOverrides } from "./lifecycle.js";
 import { FakeClaudeSessionAdapter } from "./adapters/fake/fake-claude-session-adapter.js";
+import { FakeBordioClient } from "./adapters/bordio/fake-bordio-client.js";
 import type { ProcessDiscoveryService } from "./domain/process-discovery/service.js";
 
 // Fast, deterministic overrides — the real ClaudeCodeAdapter/
@@ -130,5 +131,110 @@ describe("startController / stop", () => {
     const controller = await startController(config, logger, fastOverrides());
     await controller.stop();
     await expect(controller.stop()).resolves.toBeUndefined();
+  });
+});
+
+describe("startController / Bordio integration (pageB3)", () => {
+  let dataDir: string;
+
+  afterEach(() => {
+    if (dataDir) {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  function extractPairingCode(lines: string[]): string {
+    for (const line of lines) {
+      const parsed = JSON.parse(line) as { code?: string };
+      if (parsed.code) {
+        return parsed.code;
+      }
+    }
+    throw new Error("no pairing code found in captured log lines");
+  }
+
+  it("is fully disabled (no Bordio task ever created) when BORDIO_API_KEY is unset", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "claudeops-bordio-lifecycle-"));
+    const config = loadConfig({ PORT: "0", DATA_DIR: dataDir });
+    const lines: string[] = [];
+    const logger = createLogger({ component: "test" }, { write: (l) => lines.push(l) });
+    const bordioClient = new FakeBordioClient();
+
+    const controller = await startController(config, logger, { ...fastOverrides(), bordioClient });
+    const port = (controller.server.address() as AddressInfo).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const token = await (
+      await fetch(`${baseUrl}/pairing/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: extractPairingCode(lines) }),
+      })
+    ).json().then((b: unknown) => (b as { token: string }).token);
+    const authHeaders = { "content-type": "application/json", authorization: `Bearer ${token}` };
+
+    const project = await (
+      await fetch(`${baseUrl}/projects`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ name: "No Bordio", path: dataDir }),
+      })
+    ).json();
+
+    await fetch(`${baseUrl}/sessions`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ projectId: (project as { id: string }).id, initialInstruction: "say hello" }),
+    });
+
+    const result = await bordioClient.listTasks();
+    expect(result.tasks).toHaveLength(0);
+
+    await controller.stop();
+  });
+
+  it("creates a Bordio task for a session reaching COMPLETED when BORDIO_API_KEY is set (fake client)", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "claudeops-bordio-lifecycle-"));
+    const config = loadConfig({ PORT: "0", DATA_DIR: dataDir, BORDIO_API_KEY: "brd_sk_live_test" });
+    const lines: string[] = [];
+    const logger = createLogger({ component: "test" }, { write: (l) => lines.push(l) });
+    const bordioClient = new FakeBordioClient();
+
+    const controller = await startController(config, logger, { ...fastOverrides(), bordioClient });
+    const port = (controller.server.address() as AddressInfo).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const token = await (
+      await fetch(`${baseUrl}/pairing/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: extractPairingCode(lines) }),
+      })
+    ).json().then((b: unknown) => (b as { token: string }).token);
+    const authHeaders = { "content-type": "application/json", authorization: `Bearer ${token}` };
+
+    const project = await (
+      await fetch(`${baseUrl}/projects`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ name: "With Bordio", path: dataDir }),
+      })
+    ).json();
+
+    await fetch(`${baseUrl}/sessions`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ projectId: (project as { id: string }).id, initialInstruction: "say hello" }),
+    });
+
+    const result = await bordioClient.listTasks();
+    expect(result.tasks).toHaveLength(1);
+    expect(result.tasks[0]?.title).toBe("Session completed");
+    expect(result.tasks[0]?.statusId).toBe("status_done");
+
+    const linkRow = controller.db.prepare("SELECT * FROM bordio_links").get() as
+      | { bordio_task_id: string }
+      | undefined;
+    expect(linkRow?.bordio_task_id).toBe(result.tasks[0]?.id);
+
+    await controller.stop();
   });
 });
