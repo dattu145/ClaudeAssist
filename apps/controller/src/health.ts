@@ -34,7 +34,12 @@ export interface HealthDeps {
   db: Database;
   startedAt: number;
   checkClaudeCli?: () => Promise<boolean>;
-  lastReconciliationAt?: string | null;
+  /**
+   * A getter, not a static value: reconciliation (page16) completes after
+   * `deps` is constructed, sometimes while the server is already serving
+   * `/health` requests — a fixed field could never reflect that.
+   */
+  getLastReconciliationAt?: () => string | null;
 }
 
 export async function getHealth(deps: HealthDeps): Promise<HealthResponse> {
@@ -47,7 +52,7 @@ export async function getHealth(deps: HealthDeps): Promise<HealthResponse> {
     uptimeSeconds: Math.floor((Date.now() - deps.startedAt) / 1000),
     dbReachable,
     claudeCliReachable,
-    lastReconciliationAt: deps.lastReconciliationAt ?? null,
+    lastReconciliationAt: deps.getLastReconciliationAt?.() ?? null,
   };
 
   return HealthResponseSchema.parse(health);

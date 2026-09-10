@@ -18,13 +18,16 @@ basis — the system must function correctly even when they are `null`/unknown.
 There is no reliable, cross-platform, general API to enumerate "terminal
 sessions" and map them to child processes without OS-specific, fragile
 techniques (e.g. parsing `conhost`/Windows Terminal internals, or tty
-enumeration on POSIX). Phase 1 implements `ProcessDiscoveryService` (OS process
-list + best-effort parent/child linkage) and treats `Terminal` as an optional,
-best-effort field populated only where the underlying OS makes it cheap and
-reliable (e.g. matching a `--bg` session's spawned process to its PID, which
-the controller already knows because it did the spawning). We do not attempt to
-discover terminals for processes the controller did not itself start. This is
-a documented limitation, not a gap to be closed with a workaround.
+enumeration on POSIX). Phase 1 implements `ProcessDiscoveryService` (page15;
+OS process list + best-effort parent/child linkage, Windows implementation
+verified, POSIX unverified on this dev environment) and treats `Terminal` as
+an optional, best-effort field, left `null` for Phase 1 — under the real
+adapter design (page8: every managed session is a short-lived process per
+dispatch, no persistent `--bg` process to correlate against a terminal), there
+is no reliable per-session terminal to populate even for controller-started
+sessions. We do not attempt to discover terminals for processes the
+controller did not itself start. This is a documented limitation, not a gap
+to be closed with a workaround.
 
 ## Session state machine
 
@@ -50,14 +53,44 @@ UNKNOWN           -> any (recovered by reconciliation once real status is known)
 
 Every transition emits `SESSION_STATUS_CHANGED { previous, current }`.
 
-## Reconciliation on controller startup
+## Reconciliation on controller startup (page16, corrected post-page8)
 
-1. Load persisted sessions from `SessionRepository`.
-2. Call `claude agents --json --all` (see research/claude-code.md) to get
-   ground truth on what's actually running.
-3. Cross-reference by `claudeSessionId`/PID. Sessions present in both: update
-   status from live data. Sessions persisted but no longer reported: transition
-   to `DISCONNECTED` (never silently assume still-active). Sessions reported by
-   `claude agents` but unknown to the registry: create as `DISCOVERED`.
-4. Emit `SESSION_RECONCILED`-class events for every change (mapped onto the
-   existing event types, e.g. `SESSION_STATUS_CHANGED`, `SESSION_DISCOVERED`).
+This section originally (page1) assumed sessions map to potentially
+long-lived OS processes cross-referenced against `claude agents --json` on
+every restart. **Page8's real adapter testing proved that's not how the
+system actually works**: every managed session is a plain resumable
+conversation with no persistent process between dispatches (no `--bg`). A
+fresh `ClaudeCodeAdapter` instance starts with a completely empty in-memory
+session map on every controller restart — it has no way to "still know
+about" a previously-tracked session regardless of whether any process
+happens to be running. The corrected algorithm (`domain/reconciliation/
+reconciler.ts`):
+
+1. **Disconnect stale mid-flight sessions, unconditionally.** Any persisted
+   session whose status is `STARTING`, `WORKING`, `WAITING_FOR_INPUT`, or
+   `WAITING_FOR_PERMISSION` is, by construction, now stale — transition it to
+   `DISCONNECTED` without checking `claude agents --json` first (it would
+   almost certainly report nothing for our own managed sessions anyway).
+   Sessions already in a terminal-ish status (`COMPLETED`, `FAILED`,
+   `STOPPED`, `DISCONNECTED`, `UNKNOWN`) are left untouched — their absence
+   from any live process list is expected, not a problem.
+2. **Discover unmanaged sessions.** `claude agents --json --all`
+   (`ClaudeSessionAdapter.discoverSessions()`) is still genuinely useful for
+   finding sessions the controller did *not* start — interactive terminals
+   opened by hand, or a stray `--bg` job. Any reported process whose
+   `claudeSessionId` isn't already persisted gets matched to a registered
+   `Project` by `cwd` (exact path match, separator/case-normalized) and
+   recorded as a new `DISCOVERED`-status session — informational only; per
+   ADR-003 we still can't dispatch to it, only observe it. No matching
+   project: logged and skipped (a session requires a `projectId`; we don't
+   guess one).
+3. **`ProcessDiscoveryService` is a diagnostic cross-check only** (per
+   page15): if it finds `claude` OS processes `agents --json` didn't report,
+   that's logged as a warning, never used to drive session state — it lacks
+   the session-id/cwd correlation `agents --json` provides.
+4. Every state change publishes a `DomainEvent` (`SESSION_DISCONNECTED`/
+   `SESSION_DISCOVERED`, `source: "system"`) through the `EventBus`, visible
+   in the event log and over WS like any other change.
+
+Reconciliation runs once, at startup, before the HTTP/WS servers begin
+accepting traffic (`lifecycle.ts`) — never as a background poll.

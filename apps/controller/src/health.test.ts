@@ -49,16 +49,20 @@ describe("getHealth", () => {
     expect(health.dbReachable).toBe(false);
   });
 
-  it("passes through lastReconciliationAt when provided", async () => {
+  it("reflects the current value of getLastReconciliationAt at call time", async () => {
     db = new Database(":memory:");
-    const iso = new Date().toISOString();
-    const health = await getHealth({
+    let value: string | null = null;
+    const deps = {
       db,
       startedAt: Date.now(),
       checkClaudeCli: () => Promise.resolve(true),
-      lastReconciliationAt: iso,
-    });
+      getLastReconciliationAt: () => value,
+    };
 
-    expect(health.lastReconciliationAt).toBe(iso);
+    expect((await getHealth(deps)).lastReconciliationAt).toBeNull();
+
+    const iso = new Date().toISOString();
+    value = iso;
+    expect((await getHealth(deps)).lastReconciliationAt).toBe(iso);
   });
 });

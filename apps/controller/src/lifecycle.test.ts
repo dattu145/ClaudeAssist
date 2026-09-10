@@ -5,7 +5,27 @@ import type { AddressInfo } from "node:net";
 import { loadConfig } from "@claudeops/config";
 import { createLogger } from "@claudeops/logging";
 import { afterEach, describe, expect, it } from "vitest";
-import { startController } from "./lifecycle.js";
+import { startController, type StartControllerOverrides } from "./lifecycle.js";
+import { FakeClaudeSessionAdapter } from "./adapters/fake/fake-claude-session-adapter.js";
+import type { ProcessDiscoveryService } from "./domain/process-discovery/service.js";
+
+// Fast, deterministic overrides — the real ClaudeCodeAdapter/
+// ProcessDiscoveryService each spawn real subprocesses, which
+// reconciliation (page16) now calls on every startup. Real integration of
+// those is already covered separately (claude-code-adapter.real.test.ts,
+// page15's manual check); these tests exercise the controller's own
+// orchestration logic (migrations, listening, shutdown, pairing, auth,
+// reconciliation wiring), not Claude Code integration itself.
+function fastOverrides(): StartControllerOverrides {
+  return {
+    claudeAdapter: new FakeClaudeSessionAdapter(createLogger({ component: "test" }, { write: () => {} })),
+    processDiscovery: {
+      listProcesses: () => Promise.resolve([]),
+      findClaudeProcesses: () => Promise.resolve([]),
+    } satisfies ProcessDiscoveryService,
+    checkClaudeCli: () => Promise.resolve(true),
+  };
+}
 
 describe("startController / stop", () => {
   let dataDir: string;
@@ -21,7 +41,7 @@ describe("startController / stop", () => {
     const config = loadConfig({ PORT: "0", DATA_DIR: dataDir });
     const logger = createLogger({ component: "test" }, { write: () => {} });
 
-    const controller = await startController(config, logger);
+    const controller = await startController(config, logger, fastOverrides());
     const port = (controller.server.address() as AddressInfo).port;
 
     const res = await fetch(`http://127.0.0.1:${port}/health`);
@@ -40,7 +60,7 @@ describe("startController / stop", () => {
     const config = loadConfig({ PORT: "0", DATA_DIR: dataDir });
     const logger = createLogger({ component: "test" }, { write: () => {} });
 
-    const controller = await startController(config, logger);
+    const controller = await startController(config, logger, fastOverrides());
     const port = (controller.server.address() as AddressInfo).port;
 
     await controller.stop();
@@ -55,7 +75,7 @@ describe("startController / stop", () => {
     const lines: string[] = [];
     const logger = createLogger({ component: "test" }, { write: (l) => lines.push(l) });
 
-    const controller = await startController(config, logger);
+    const controller = await startController(config, logger, fastOverrides());
 
     const pairingRow = controller.db.prepare("SELECT * FROM pairing_codes").get() as
       | { code: string; consumed_at: string | null }
@@ -74,7 +94,7 @@ describe("startController / stop", () => {
     const config = loadConfig({ PORT: "0", DATA_DIR: dataDir });
     const logger = createLogger({ component: "test" }, { write: () => {} });
 
-    const controller = await startController(config, logger);
+    const controller = await startController(config, logger, fastOverrides());
     const port = (controller.server.address() as AddressInfo).port;
 
     const health = await fetch(`http://127.0.0.1:${port}/health`);
@@ -86,12 +106,28 @@ describe("startController / stop", () => {
     await controller.stop();
   });
 
+  it("runs reconciliation before listening and exposes lastReconciliationAt via /health", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "claudeops-lifecycle-"));
+    const config = loadConfig({ PORT: "0", DATA_DIR: dataDir });
+    const logger = createLogger({ component: "test" }, { write: () => {} });
+
+    const controller = await startController(config, logger, fastOverrides());
+    const port = (controller.server.address() as AddressInfo).port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/health`);
+    const body = (await res.json()) as { lastReconciliationAt: string | null };
+    expect(body.lastReconciliationAt).not.toBeNull();
+    expect(new Date(body.lastReconciliationAt as string).getTime()).toBeLessThanOrEqual(Date.now());
+
+    await controller.stop();
+  });
+
   it("stop() is idempotent", async () => {
     dataDir = mkdtempSync(join(tmpdir(), "claudeops-lifecycle-"));
     const config = loadConfig({ PORT: "0", DATA_DIR: dataDir });
     const logger = createLogger({ component: "test" }, { write: () => {} });
 
-    const controller = await startController(config, logger);
+    const controller = await startController(config, logger, fastOverrides());
     await controller.stop();
     await expect(controller.stop()).resolves.toBeUndefined();
   });

@@ -170,3 +170,26 @@
   RISKS.md. Not wired into `lifecycle.ts` yet — page16 is the consumer.
   281 default-suite tests passing, lint/typecheck clean, grep-confirmed no
   platform-specific command leaks outside `adapters/process-discovery/`.
+- Attempted to push page15 to `origin/main`: still 403 (same stored-
+  credential issue). Commit remains local.
+- Implemented page16: startup reconciliation
+  (`domain/reconciliation/reconciler.ts`). Corrected
+  `architecture/session-model.md`'s reconciliation algorithm to match
+  reality: page8 proved sessions don't map to long-lived processes, so any
+  persisted session in a mid-flight status is unconditionally disconnected
+  on startup rather than conditionally cross-referenced against `claude
+  agents --json`; that CLI call is still used, but for discovering
+  *unmanaged* sessions (matched to a project by `cwd`) as `DISCOVERED`
+  records. `GET /health`'s `lastReconciliationAt` finally reflects a real
+  value via a getter instead of a permanently-`null` static field.
+  Found and fixed two real problems via testing: a redundant double call
+  to `discoverSessions()`, and — far more significantly — a measured ~7s
+  of pure `powershell.exe` process-startup overhead on this machine that
+  was blocking every controller startup through the (diagnostic-only,
+  state-non-driving) `ProcessDiscoveryService` cross-check. Decoupled it
+  into a background task; `startController()` now resolves in ~2.5s
+  instead of ~19-22s (measured). Made `startController`'s real
+  dependencies injectable so `lifecycle.test.ts` runs in <3s instead of
+  96s (and sometimes timing out) without losing real-integration coverage,
+  reverified via a fresh manual end-to-end run. 298 default-suite tests
+  passing, lint/typecheck clean.

@@ -18,6 +18,10 @@ import { wireEventPersistence } from "./domain/events/wire-persistence.js";
 import { attachWebSocketServer } from "./api/ws/server.js";
 import { SqlitePairingRepository } from "./adapters/persistence/sqlite/pairing-repository.js";
 import { PairingRegistry } from "./domain/pairing/registry.js";
+import { createProcessDiscoveryService } from "./adapters/process-discovery/create-process-discovery-service.js";
+import { Reconciler } from "./domain/reconciliation/reconciler.js";
+import type { ClaudeSessionAdapter } from "./domain/session/adapter.js";
+import type { ProcessDiscoveryService } from "./domain/process-discovery/service.js";
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -27,7 +31,24 @@ export interface Controller {
   stop: () => Promise<void>;
 }
 
-export async function startController(config: Config, logger: Logger): Promise<Controller> {
+export interface StartControllerOverrides {
+  /** Injectable for tests: the real ClaudeCodeAdapter and
+   * ProcessDiscoveryService each spawn real subprocesses (the claude CLI,
+   * PowerShell/ps), which reconciliation now calls on every startup —
+   * fine for production, far too slow for a fast test suite. Defaults to
+   * the real implementations when omitted. */
+  claudeAdapter?: ClaudeSessionAdapter;
+  processDiscovery?: ProcessDiscoveryService;
+  /** Same reasoning — /health's default check also spawns `claude
+   * --version` for real. */
+  checkClaudeCli?: () => Promise<boolean>;
+}
+
+export async function startController(
+  config: Config,
+  logger: Logger,
+  overrides: StartControllerOverrides = {}
+): Promise<Controller> {
   const db = openDatabase(config.DATA_DIR);
   const applied = runMigrations(db);
   if (applied.length > 0) {
@@ -35,7 +56,9 @@ export async function startController(config: Config, logger: Logger): Promise<C
   }
 
   const startedAt = Date.now();
-  const projectRegistry = new ProjectRegistry(new SqliteProjectRepository(db));
+  const projectRepository = new SqliteProjectRepository(db);
+  const sessionRepository = new SqliteSessionRepository(db);
+  const projectRegistry = new ProjectRegistry(projectRepository);
 
   const pairingRegistry = new PairingRegistry(
     new SqlitePairingRepository(db),
@@ -48,18 +71,35 @@ export async function startController(config: Config, logger: Logger): Promise<C
   const eventRepository = new SqliteEventRepository(db);
   wireEventPersistence(eventBus, eventRepository, logger.child({ component: "event-persistence" }));
 
-  const claudeAdapter = new ClaudeCodeAdapter(logger.child({ component: "claude-code-adapter" }));
-  const sessionRegistry = new SessionRegistry(
-    new SqliteSessionRepository(db),
-    claudeAdapter,
-    projectRegistry,
-    eventBus
-  );
+  const claudeAdapter =
+    overrides.claudeAdapter ?? new ClaudeCodeAdapter(logger.child({ component: "claude-code-adapter" }));
+  const sessionRegistry = new SessionRegistry(sessionRepository, claudeAdapter, projectRegistry, eventBus);
   const taskRegistry = new TaskRegistry(
     new SqliteTaskRepository(db),
     sessionRegistry,
     logger.child({ component: "task-registry" })
   );
+
+  // Runs before the HTTP server starts accepting traffic (architecture/
+  // controller.md) — persisted state must never lie about what's actually
+  // happening once the server is reachable.
+  const processDiscovery = overrides.processDiscovery ?? createProcessDiscoveryService();
+  const reconciler = new Reconciler(
+    sessionRepository,
+    projectRepository,
+    claudeAdapter,
+    processDiscovery,
+    eventBus,
+    logger.child({ component: "reconciliation" })
+  );
+  let lastReconciliationAt: string | null = null;
+  await reconciler.reconcile();
+  lastReconciliationAt = new Date().toISOString();
+  // Diagnostic-only, never drives state — deliberately not awaited (see
+  // Reconciler.runProcessDiscoveryCrossCheckInBackground's docstring for
+  // why: a single PowerShell invocation costs ~7s of pure process-startup
+  // overhead on this dev machine, measured for real).
+  void reconciler.runProcessDiscoveryCrossCheckInBackground();
 
   const app = createApp({
     db,
@@ -70,6 +110,8 @@ export async function startController(config: Config, logger: Logger): Promise<C
     taskRegistry,
     eventRepository,
     pairingRegistry,
+    getLastReconciliationAt: () => lastReconciliationAt,
+    ...(overrides.checkClaudeCli ? { checkClaudeCli: overrides.checkClaudeCli } : {}),
   });
 
   const server = app.listen(config.PORT, () => {
