@@ -1,8 +1,7 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page18 (mobile dashboard + real data) — implemented and
-  verified
+**Current page**: page19 (NotificationService) — implemented and verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -12,21 +11,52 @@
   page11 (Task system), page12 (REST API completion), page13 (WebSocket
   API), page14 (pairing & auth), page15 (ProcessDiscoveryService), page16
   (startup reconciliation), page17 (mobile foundation), page18 (mobile
-  dashboard + real data)
+  dashboard + real data), page19 (NotificationService + domain-event
+  wiring)
 **Active work**: none
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through page18 commits are sitting
+  user.name` didn't fix it). Page10 through page19 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
   transitive deps (Expo scaffold + better-sqlite3 + expo-router's own
   deps) — not yet triaged; do not run `npm audit fix --force` without
   review, it can silently change majors.
-**Next action**: write `.claude/plans/page19.md` (NotificationService), then
-  implement it
-**Last completed milestone**: page18 implemented and verified (2026-09-10) —
+**Next action**: write `.claude/plans/page20.md` (CommandRouter/
+  IntentResolver interfaces), then implement it
+**Last completed milestone**: page19 implemented and verified (2026-09-10)
+  — the third `EventBus` subscriber named in `architecture/event-system.md`
+  (alongside `EventRepository` and the WS API), closing a documented gap
+  since page10. Added `domain/notification/service.ts` (the
+  `NotificationService` interface — Phase 1 draws it now so a future push/
+  WhatsApp/voice notifier is a new adapter, not a rewrite, per ADR-002),
+  `domain/notification/should-notify.ts` (a pure function classifying
+  every `DomainEventType`: `SESSION_COMPLETED`/`FAILED`/
+  `WAITING_FOR_INPUT`/`WAITING_FOR_PERMISSION`/`ERROR` are notify-worthy —
+  the first four are `event-system.md`'s own examples, `SESSION_ERROR` was
+  added as the same "something needs you" bucket as `FAILED` — everything
+  else is purely informational and already reaches mobile live over WS),
+  `adapters/notification/console-notification-service.ts` (Phase 1's only
+  implementation — logs through the same structured JSON stdout as
+  everything else, tagged `notification: true` for filterability), and
+  `domain/notification/wire-notifications.ts` (bus subscriber, same
+  fire-and-forget-with-logged-failure shape as page10's
+  `wireEventPersistence` — a `notify()` rejection can't crash the bus or
+  block the other subscribers). Wired live in `lifecycle.ts`.
+
+  Verified: 322 tests passing (+21 new: 15 `shouldNotify` cases covering
+  every event type, 2 `ConsoleNotificationService`, 4 `wireNotifications`),
+  typecheck/lint clean. Real end-to-end manual check (`tsx` against a live
+  `startController()`, not mocked): drove one session to `SESSION_
+  COMPLETED` (default fake-adapter outcome) and a second to `SESSION_
+  FAILED` (via `FakeClaudeSessionAdapter.queueInstructionOutcome`),
+  confirmed a real `notification: true` log line fired for each, and that
+  the sessions' `SESSION_OUTPUT` events (purely informational) produced
+  none — then discarded the scratch script, not committed.
+
+**Previous milestone**: page18 implemented and verified (2026-09-10) —
   replaced page17's placeholder mobile screens with real controller data and
   live WebSocket updates.
 

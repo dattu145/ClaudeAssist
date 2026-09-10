@@ -15,6 +15,8 @@ import { SessionRegistry } from "./domain/session/registry.js";
 import { TaskRegistry } from "./domain/task/registry.js";
 import { InProcessEventBus } from "./domain/events/bus.js";
 import { wireEventPersistence } from "./domain/events/wire-persistence.js";
+import { wireNotifications } from "./domain/notification/wire-notifications.js";
+import { ConsoleNotificationService } from "./adapters/notification/console-notification-service.js";
 import { attachWebSocketServer } from "./api/ws/server.js";
 import { SqlitePairingRepository } from "./adapters/persistence/sqlite/pairing-repository.js";
 import { PairingRegistry } from "./domain/pairing/registry.js";
@@ -70,6 +72,9 @@ export async function startController(
   const eventBus = new InProcessEventBus(logger.child({ component: "event-bus" }));
   const eventRepository = new SqliteEventRepository(db);
   wireEventPersistence(eventBus, eventRepository, logger.child({ component: "event-persistence" }));
+
+  const notificationService = new ConsoleNotificationService(logger.child({ component: "notification" }));
+  wireNotifications(eventBus, notificationService, logger.child({ component: "notification" }));
 
   const claudeAdapter =
     overrides.claudeAdapter ?? new ClaudeCodeAdapter(logger.child({ component: "claude-code-adapter" }));

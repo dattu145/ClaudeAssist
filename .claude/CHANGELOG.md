@@ -245,3 +245,25 @@
   confirm the WS client receives the live envelope for it, confirm
   unauthenticated `/projects` is rejected. No device/simulator testing
   possible in this environment (documented, same as page1/page17).
+- Implemented page19: NotificationService (Console) + domain-event wiring
+  — the third `EventBus` subscriber named in `architecture/event-
+  system.md` (alongside `EventRepository` and the WS API), a documented
+  gap since page10. Added `domain/notification/service.ts` (the
+  `NotificationService` interface, drawn now per ADR-002 so a future
+  push/WhatsApp/voice notifier is a new adapter, not a rewrite),
+  `domain/notification/should-notify.ts` (pure classifier: `SESSION_
+  COMPLETED`/`FAILED`/`WAITING_FOR_INPUT`/`WAITING_FOR_PERMISSION`/`ERROR`
+  are notify-worthy — the first four are event-system.md's own examples,
+  `SESSION_ERROR` added as the same bucket as `FAILED` — everything else
+  is informational and already reaches mobile live over WS),
+  `adapters/notification/console-notification-service.ts` (Phase 1's
+  implementation, logs through the existing structured JSON stdout tagged
+  `notification: true`), and `domain/notification/wire-notifications.ts`
+  (bus subscriber, same fire-and-forget-with-logged-failure shape as
+  `wireEventPersistence`). Wired live in `lifecycle.ts`. 322 tests passing
+  (+21 new), typecheck/lint clean. Verified end-to-end with a real
+  `startController()` run (not mocked): drove one `FakeClaudeSession
+  Adapter` session to `SESSION_COMPLETED` and a second (via
+  `queueInstructionOutcome`) to `SESSION_FAILED`, confirmed a real
+  `notification: true` log line fired for each and that `SESSION_OUTPUT`
+  produced none.
