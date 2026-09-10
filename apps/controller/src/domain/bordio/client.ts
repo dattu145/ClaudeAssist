@@ -26,6 +26,9 @@ export interface CreateBordioTaskInput {
 export interface UpdateBordioTaskInput {
   title?: string;
   statusId?: string;
+  /** pageB4: used to remove the inbound command tag from a task right
+   * after it's been dispatched, so it isn't redispatched next poll. */
+  tagIds?: string[];
 }
 
 export interface ListTasksOptions {

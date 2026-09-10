@@ -55,7 +55,7 @@
 - [x] Write `.claude/plans/pageB2.md` and implement (Bordio ID mapping
       persistence)
 - [x] Write `.claude/plans/pageB3.md` and implement (BordioNotificationService, outbound)
-- [ ] Write `.claude/plans/pageB4.md` and implement (inbound Bordio command polling)
+- [x] Write `.claude/plans/pageB4.md` and implement (inbound Bordio command polling)
 - [ ] Write `.claude/plans/pageB5.md` and implement (Phase 2 hardening pass)
 - [ ] Get a real Bordio API key/workspace to run `bordio-client.real.test.ts`
       for real (currently written but unverified against the live API)

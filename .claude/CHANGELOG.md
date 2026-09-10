@@ -388,3 +388,28 @@
   throwaway manual-check script. Typecheck/lint clean. No real Bordio
   workspace available — verified against `FakeBordioClient` only, same
   carried-forward limitation as pageB1/pageB2.
+- Implemented pageB4: inbound Bordio command polling. Since Bordio has
+  no webhooks, `domain/bordio/inbound-poller.ts`'s `BordioInboundPoller`
+  is a bounded, backed-off poller (same spirit as
+  `ProcessDiscoveryService`'s cross-check). Deliberately acts only on
+  Bordio tasks already *linked* by pageB3's outbound sync — this
+  project's minimal `BordioTask` shape has no custom-field support, so
+  rather than inventing a fragile text convention to identify which
+  session a brand-new task targets, the user replies to the same card
+  ClaudeOps already showed them (edit the title, apply a configured
+  command tag), found via `bordio_links.findByBordioTaskId`, dispatched
+  through the existing `CommandRouter` (page20, not `IntentResolver` —
+  Bordio tasks are structured, not free text), then untagged so it isn't
+  redispatched. Starting a brand-new session purely from Bordio is
+  documented out of scope. Reuses pageB2's `bordio_poll_cursors` for
+  ETag-based short-circuiting on an unchanged poll. `UpdateBordioTaskInput`
+  gained `tagIds?`. New config: `BORDIO_COMMAND_TAG_ID` (required for the
+  poller to start) and `BORDIO_POLL_INTERVAL_MS` (default 60s — actually
+  wired, unlike page21's documented dead `DISCOVERY_POLL_INTERVAL_MS`).
+  `Controller` gained a test-only `pollBordioInboundCommandsNow` escape
+  hatch. 391 tests passing (+9 new), including two permanent
+  `lifecycle.test.ts` cases driving a real session to `WAITING_FOR_INPUT`,
+  simulating a user reply, and confirming the instruction actually landed
+  over real HTTP. Typecheck/lint clean. No real Bordio workspace
+  available — same carried-forward limitation as every prior Phase 2
+  page.

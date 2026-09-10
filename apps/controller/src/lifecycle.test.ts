@@ -238,3 +238,107 @@ describe("startController / Bordio integration (pageB3)", () => {
     await controller.stop();
   });
 });
+
+describe("startController / Bordio inbound polling (pageB4)", () => {
+  let dataDir: string;
+
+  afterEach(() => {
+    if (dataDir) {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  function extractPairingCode(lines: string[]): string {
+    for (const line of lines) {
+      const parsed = JSON.parse(line) as { code?: string };
+      if (parsed.code) {
+        return parsed.code;
+      }
+    }
+    throw new Error("no pairing code found in captured log lines");
+  }
+
+  it("dispatches an instruction for a linked, command-tagged Bordio task and untags it", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "claudeops-bordio-poll-lifecycle-"));
+    const config = loadConfig({
+      PORT: "0",
+      DATA_DIR: dataDir,
+      BORDIO_API_KEY: "brd_sk_live_test",
+      BORDIO_COMMAND_TAG_ID: "tag_command",
+    });
+    const lines: string[] = [];
+    const logger = createLogger({ component: "test" }, { write: (l) => lines.push(l) });
+    const bordioClient = new FakeBordioClient();
+    const adapter = new FakeClaudeSessionAdapter(createLogger({ component: "test" }, { write: () => {} }));
+
+    const controller = await startController(config, logger, { ...fastOverrides(), claudeAdapter: adapter, bordioClient });
+    const port = (controller.server.address() as AddressInfo).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const token = await (
+      await fetch(`${baseUrl}/pairing/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: extractPairingCode(lines) }),
+      })
+    ).json().then((b: unknown) => (b as { token: string }).token);
+    const authHeaders = { "content-type": "application/json", authorization: `Bearer ${token}` };
+
+    const project = await (
+      await fetch(`${baseUrl}/projects`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ name: "Inbound Poll Check", path: dataDir }),
+      })
+    ).json();
+    const session = await (
+      await fetch(`${baseUrl}/sessions`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ projectId: (project as { id: string }).id }),
+      })
+    ).json();
+    const sessionId = (session as { id: string }).id;
+
+    // Drive the session to WAITING_FOR_INPUT so the outbound sync
+    // (pageB3, already wired) creates and links a real Bordio task for
+    // it — the same card the user would see and reply to.
+    adapter.queueInstructionOutcome(sessionId, "waiting_for_input");
+    await fetch(`${baseUrl}/sessions/${sessionId}/instructions`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ instruction: "ask a question" }),
+    });
+
+    const linked = await bordioClient.listTasks();
+    expect(linked.tasks).toHaveLength(1);
+    const bordioTaskId = linked.tasks[0]?.id as string;
+
+    // Simulate the user replying: edit the title and apply the command
+    // tag to the same linked card.
+    await bordioClient.updateTask(bordioTaskId, { title: "please continue", tagIds: ["tag_command"] });
+
+    expect(controller.pollBordioInboundCommandsNow).toBeDefined();
+    await controller.pollBordioInboundCommandsNow?.();
+
+    const tasksRes = await fetch(`${baseUrl}/sessions/${sessionId}/tasks`, { headers: authHeaders });
+    const tasks = (await tasksRes.json()) as Array<{ instruction: string }>;
+    expect(tasks.some((t) => t.instruction === "please continue")).toBe(true);
+
+    const afterPoll = await bordioClient.listTasks();
+    expect(afterPoll.tasks[0]?.tagIds).not.toContain("tag_command");
+
+    await controller.stop();
+  });
+
+  it("pollBordioInboundCommandsNow is undefined when BORDIO_COMMAND_TAG_ID is unset", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "claudeops-bordio-poll-lifecycle-"));
+    const config = loadConfig({ PORT: "0", DATA_DIR: dataDir, BORDIO_API_KEY: "brd_sk_live_test" });
+    const logger = createLogger({ component: "test" }, { write: () => {} });
+
+    const controller = await startController(config, logger, { ...fastOverrides(), bordioClient: new FakeBordioClient() });
+
+    expect(controller.pollBordioInboundCommandsNow).toBeUndefined();
+
+    await controller.stop();
+  });
+});

@@ -2,8 +2,8 @@
 
 **Current phase**: Phase 2 (Bordio integration) — Phase 1 complete, see
   close-out section below.
-**Current page**: pageB3 (BordioNotificationService, outbound) —
-  implemented and verified
+**Current page**: pageB4 (inbound Bordio command polling) — implemented
+  and verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -17,12 +17,13 @@
   wiring), page20 (CommandRouter/IntentResolver interfaces), page21 (24/7
   hardening & reliability pass) — **Phase 1 complete**. pageB1 (BordioClient
   adapter + FakeBordioClient), pageB2 (Bordio ID mapping persistence),
-  pageB3 (BordioNotificationService, outbound).
+  pageB3 (BordioNotificationService, outbound), pageB4 (inbound Bordio
+  command polling).
 **Active work**: none
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through pageB3 commits are sitting
+  user.name` didn't fix it). Page10 through pageB4 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
@@ -31,13 +32,53 @@
   review, it can silently change majors. See also the Phase 1 close-out's
   documented limitations below. No real `BORDIO_API_KEY`/workspace is
   available in this environment — `bordio-client.real.test.ts` is written
-  but has not been run for real anywhere yet, and pageB3's outbound sync
-  has only been verified against `FakeBordioClient`, never a real Bordio
-  workspace (same documented limitation, not yet resolved).
-**Next action**: write `.claude/plans/pageB4.md` (inbound Bordio command
-  polling), then implement it.
+  but has not been run for real anywhere yet; both directions of the
+  Bordio integration (outbound sync, inbound polling) have only been
+  verified against `FakeBordioClient`, never a real Bordio workspace
+  (same documented limitation, not yet resolved). pageB4's inbound
+  commands only work on Bordio tasks pageB3 already linked to a session
+  (see pageB4.md's Design section) — starting a brand-new session purely
+  from Bordio isn't supported.
+**Next action**: write `.claude/plans/pageB5.md` (Phase 2 hardening
+  pass — the final Phase 2 page), then implement it.
 
-**Last completed milestone**: pageB3 implemented and verified
+**Last completed milestone**: pageB4 implemented and verified
+(2026-09-10) — the other direction ADR-006 named: a Bordio task can
+trigger a ClaudeOps command. Since Bordio has no webhooks, this is a
+bounded, backed-off poller (`domain/bordio/inbound-poller.ts`'s
+`BordioInboundPoller`), same spirit as `ProcessDiscoveryService`'s
+cross-check. Design decision worth calling out: rather than inventing a
+text convention to identify which session a brand-new Bordio task
+targets (this project's minimal `BordioTask` shape has no custom-field
+support), the poller only acts on tasks **already linked** by pageB3 —
+i.e. the "Session needs input" card the user already sees. The user
+replies by editing that card's title and applying a configured command
+tag; the poller finds it via `bordio_links.findByBordioTaskId`,
+dispatches `SEND_INSTRUCTION` through the existing `CommandRouter`
+(page20 — not `IntentResolver`, per ADR-006, since Bordio tasks are
+structured data), and removes the tag afterward so it isn't
+redispatched. Starting a brand-new session purely from Bordio is out of
+scope, documented as a real limitation, not an oversight. Poll mechanics
+reuse pageB2's `bordio_poll_cursors` (ETag-based, so an unchanged poll
+short-circuits on a real `304`). `UpdateBordioTaskInput` (pageB1) gained
+`tagIds?` to support the untagging step. Config: `BORDIO_COMMAND_TAG_ID`
+(required for the poller to start — opaque per-workspace, no
+auto-discovery possible) and `BORDIO_POLL_INTERVAL_MS` (default 60s;
+actually wired to something, unlike page21's documented dead
+`DISCOVERY_POLL_INTERVAL_MS`). Wired into `lifecycle.ts`, started only
+when both `BORDIO_API_KEY` and `BORDIO_COMMAND_TAG_ID` are set;
+`Controller` gained a test-only `pollBordioInboundCommandsNow` escape
+hatch (matching `db` already being exposed for test introspection) to
+force one poll tick instead of waiting a real interval. Verified: 391
+tests passing (+9 new), including two permanent `lifecycle.test.ts`
+integration cases that drive a real session to `WAITING_FOR_INPUT`
+(letting pageB3's outbound sync create the real link), simulate the
+user's reply via `FakeBordioClient`, force a poll, and confirm the
+session actually received the instruction over real HTTP. Typecheck/
+lint clean. No real Bordio workspace available — same carried-forward
+limitation as every prior Phase 2 page.
+
+**Previous milestone**: pageB3 implemented and verified
 (2026-09-10) — the first Phase 2 page that's actually visible to the
 user: session status now mirrors onto a Bordio task board.
 `domain/bordio/session-to-bordio-state.ts` maps the five notify-worthy

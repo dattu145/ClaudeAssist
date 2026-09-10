@@ -12,6 +12,7 @@ describe("loadConfig", () => {
       DISCOVERY_POLL_INTERVAL_MS: 15_000,
       LOG_MAX_FILE_BYTES: 10 * 1024 * 1024,
       LOG_MAX_FILES: 5,
+      BORDIO_POLL_INTERVAL_MS: 60_000,
     });
   });
 
@@ -48,6 +49,15 @@ describe("loadConfig", () => {
     expect(configured.BORDIO_API_KEY).toBe("brd_sk_live_test");
     expect(configured.BORDIO_OPEN_STATUS_ID).toBe("status_open");
     expect(configured.BORDIO_CLOSED_STATUS_ID).toBe("status_closed");
+  });
+
+  it("BORDIO_COMMAND_TAG_ID is unset by default; BORDIO_POLL_INTERVAL_MS defaults to 60000", () => {
+    expect(loadConfig({}).BORDIO_COMMAND_TAG_ID).toBeUndefined();
+    expect(loadConfig({}).BORDIO_POLL_INTERVAL_MS).toBe(60_000);
+
+    const configured = loadConfig({ BORDIO_COMMAND_TAG_ID: "tag_claudeops", BORDIO_POLL_INTERVAL_MS: "30000" });
+    expect(configured.BORDIO_COMMAND_TAG_ID).toBe("tag_claudeops");
+    expect(configured.BORDIO_POLL_INTERVAL_MS).toBe(30_000);
   });
 
   it("accepts PORT=0 (delegates to the OS for an ephemeral port)", () => {

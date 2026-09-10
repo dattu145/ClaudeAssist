@@ -21,7 +21,9 @@ import { CommandRouter } from "./domain/command/router.js";
 import type { BordioClient } from "./domain/bordio/client.js";
 import { BordioApiClient } from "./adapters/bordio/bordio-client.js";
 import { BordioNotificationService } from "./adapters/bordio/bordio-notification-service.js";
+import { BordioInboundPoller } from "./domain/bordio/inbound-poller.js";
 import { SqliteBordioLinkRepository } from "./adapters/persistence/sqlite/bordio-link-repository.js";
+import { SqliteBordioPollCursorRepository } from "./adapters/persistence/sqlite/bordio-poll-cursor-repository.js";
 import { attachWebSocketServer } from "./api/ws/server.js";
 import { SqlitePairingRepository } from "./adapters/persistence/sqlite/pairing-repository.js";
 import { PairingRegistry } from "./domain/pairing/registry.js";
@@ -36,6 +38,11 @@ export interface Controller {
   db: Database.Database;
   server: Server;
   stop: () => Promise<void>;
+  /** Test-only escape hatch (matches `db` already being exposed for test
+   * introspection): forces one Bordio inbound poll tick instead of
+   * waiting a real interval. `undefined` when the poller isn't running
+   * (BORDIO_COMMAND_TAG_ID unset). */
+  pollBordioInboundCommandsNow?: () => Promise<void>;
 }
 
 export interface StartControllerOverrides {
@@ -87,14 +94,21 @@ export async function startController(
   wireNotifications(eventBus, notificationService, logger.child({ component: "notification" }));
 
   // Off by default (decisions/ADR-006.md) — only constructed when
-  // BORDIO_API_KEY is configured, real or fake alike.
-  if (config.BORDIO_API_KEY) {
-    const bordioClient =
-      overrides.bordioClient ??
-      new BordioApiClient(config.BORDIO_API_KEY, logger.child({ component: "bordio-client" }));
+  // BORDIO_API_KEY is configured, real or fake alike. commandRouter
+  // doesn't exist yet at this point (built below), so the inbound
+  // poller — which needs it — is constructed and started further down,
+  // once it does; bordioClient/bordioLinkRepository are shared between
+  // both halves of the Bordio wiring.
+  const bordioClient = config.BORDIO_API_KEY
+    ? (overrides.bordioClient ??
+      new BordioApiClient(config.BORDIO_API_KEY, logger.child({ component: "bordio-client" })))
+    : null;
+  const bordioLinkRepository = bordioClient ? new SqliteBordioLinkRepository(db) : null;
+
+  if (bordioClient && bordioLinkRepository) {
     const bordioNotificationService = new BordioNotificationService(
       bordioClient,
-      new SqliteBordioLinkRepository(db),
+      bordioLinkRepository,
       logger.child({ component: "bordio-notification" }),
       {
         ...(config.BORDIO_OPEN_STATUS_ID ? { openStatusId: config.BORDIO_OPEN_STATUS_ID } : {}),
@@ -113,6 +127,22 @@ export async function startController(
     logger.child({ component: "task-registry" })
   );
   const commandRouter = new CommandRouter(sessionRegistry, taskRegistry);
+
+  // Off by default even with BORDIO_API_KEY set (pageB4: outbound-only
+  // is a valid configuration) — a tag id is workspace-specific and
+  // opaque, no auto-discovery is possible.
+  const bordioInboundPoller =
+    bordioClient && bordioLinkRepository && config.BORDIO_COMMAND_TAG_ID
+      ? new BordioInboundPoller(
+          bordioClient,
+          bordioLinkRepository,
+          new SqliteBordioPollCursorRepository(db),
+          commandRouter,
+          logger.child({ component: "bordio-inbound-poller" }),
+          { commandTagId: config.BORDIO_COMMAND_TAG_ID }
+        )
+      : null;
+  bordioInboundPoller?.start(config.BORDIO_POLL_INTERVAL_MS);
 
   // Runs before the HTTP server starts accepting traffic (architecture/
   // controller.md) — persisted state must never lie about what's actually
@@ -166,6 +196,7 @@ export async function startController(
       return Promise.resolve();
     }
     stopped = true;
+    bordioInboundPoller?.stop();
 
     return new Promise((resolve) => {
       const forceTimer = setTimeout(() => {
@@ -193,7 +224,12 @@ export async function startController(
     });
   };
 
-  return { db, server, stop };
+  return {
+    db,
+    server,
+    stop,
+    ...(bordioInboundPoller ? { pollBordioInboundCommandsNow: () => bordioInboundPoller.pollOnce() } : {}),
+  };
 }
 
 export function registerShutdownHandlers(controller: Controller, logger: Logger): void {

@@ -22,6 +22,11 @@ export const ConfigSchema = z.object({
   BORDIO_API_KEY: z.string().min(1).optional(),
   BORDIO_OPEN_STATUS_ID: z.string().min(1).optional(),
   BORDIO_CLOSED_STATUS_ID: z.string().min(1).optional(),
+  // pageB4: inbound polling only starts when this AND BORDIO_API_KEY are
+  // both set — a tag id is workspace-specific and opaque, no
+  // auto-discovery is possible (unlike the open/closed status ids).
+  BORDIO_COMMAND_TAG_ID: z.string().min(1).optional(),
+  BORDIO_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

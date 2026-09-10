@@ -104,6 +104,7 @@ export class BordioApiClient implements BordioClient {
     const res = await this.request("PATCH", `/tasks/${encodeURIComponent(id)}`, {
       ...(input.title ? { title: input.title } : {}),
       ...(input.statusId ? { task_status_id: input.statusId } : {}),
+      ...(input.tagIds ? { tag_ids: input.tagIds } : {}),
     });
     const body = (await res.json()) as BordioTaskApiShape;
     return fromApiTask(body);
