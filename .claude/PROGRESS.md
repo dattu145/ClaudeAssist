@@ -1,8 +1,9 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page20 (CommandRouter/IntentResolver interfaces) —
-  implemented and verified
+**Current page**: page21 (24/7 hardening & reliability pass) —
+  implemented and verified. **Phase 1 is complete** — see the close-out
+  section below.
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -13,21 +14,103 @@
   API), page14 (pairing & auth), page15 (ProcessDiscoveryService), page16
   (startup reconciliation), page17 (mobile foundation), page18 (mobile
   dashboard + real data), page19 (NotificationService + domain-event
-  wiring), page20 (CommandRouter/IntentResolver interfaces)
-**Active work**: none
+  wiring), page20 (CommandRouter/IntentResolver interfaces), page21 (24/7
+  hardening & reliability pass)
+**Active work**: none — Phase 1 roadmap is closed (no page22)
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through page20 commits are sitting
+  user.name` didn't fix it). Page10 through page21 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
   transitive deps (Expo scaffold + better-sqlite3 + expo-router's own
   deps) — not yet triaged; do not run `npm audit fix --force` without
-  review, it can silently change majors.
-**Next action**: write `.claude/plans/page21.md` (24/7 hardening &
-  reliability pass — the final Phase 1 page), then implement it
-**Last completed milestone**: page20 implemented and verified (2026-09-10)
+  review, it can silently change majors. See also the Phase 1 close-out's
+  documented limitations below.
+**Next action**: none from this roadmap — Phase 1 is done. Next steps are
+  either fixing git push access, or scoping Phase 2 (voice/Bordio/
+  WhatsApp/multi-user — all explicitly out of Phase 1) whenever the user
+  wants to start that.
+
+## Phase 1 close-out
+
+Checked against what's persisted in `.claude/` — `ARCHITECTURE.md`,
+`SECURITY.md`, `RISKS.md`, `TEST_PLAN.md` — as the practical stand-in for
+the original spec's Phase 1 Acceptance Criteria checklist, which isn't
+saved verbatim anywhere in this repo (the user confirmed this substitution
+during page21).
+
+**Delivered, matching `ARCHITECTURE.md`'s component map:**
+- Controller: modular monolith (Express + `ws`, one process, one port),
+  SQLite behind repository interfaces, structured JSON logging with
+  optional rotating file output (page21).
+- Domain layer: Project/Session/Task registries, formal state machines
+  for both Session and Task (`packages/protocol`), event bus +
+  `EventRepository` + WS broadcast + `NotificationService` (all three
+  named subscribers from `architecture/event-system.md`), startup
+  reconciliation (page16), `CommandRouter`/`IntentResolver` scaffolding
+  (page20, ADR-005) — actually wired into the four mutating session
+  routes, not left inert.
+- `ClaudeCodeAdapter`: real Claude Code CLI integration per the corrected
+  design in `research/claude-code.md` (plain `-p --session-id`/`-p
+  --resume`, never `--bg`), behind the same `ClaudeSessionAdapter`
+  interface `FakeClaudeSessionAdapter` implements — the whole test suite
+  never depends on real Claude Code or network access except the
+  explicitly opt-in `claude-code-adapter.real.test.ts`.
+- `ProcessDiscoveryService`: Windows implementation verified against this
+  machine's real process list; POSIX implementation built but genuinely
+  unverified (documented in `RISKS.md` since page15).
+- Security (`SECURITY.md`): pairing codes + hashed bearer tokens, every
+  route but `/health` and `/pairing/*` authenticated — including the WS
+  `/ws` endpoint, where a real gap (Express auth middleware never running
+  for WS connections) was found and fixed during page18, before mobile
+  shipped against it. `--dangerously-skip-permissions` is never a
+  default anywhere in this codebase.
+- Mobile: Expo/React Native app, pairing screen, real dashboard/projects/
+  sessions/session-detail screens wired to the real controller over REST
+  + a reconnecting WS live-events stream (page17/18) — no placeholder
+  screens remain.
+- Reliability (this page): bounded-memory audit (two findings
+  documented, not silently ignored — see `RISKS.md`), log rotation
+  implemented and verified against real files on real disk, and a
+  full-stack recovery test (`recovery.test.ts`) proving the documented
+  reconciliation algorithm end-to-end across two real controller
+  instances sharing one on-disk database — closing the `TEST_PLAN.md`
+  "Recovery" layer gap that had existed since page1's test plan was
+  written.
+- 335 tests passing across the monorepo (2 opt-in real-CLI tests
+  intentionally skipped by default), typecheck and lint clean on both
+  workspaces at every page.
+
+**Explicitly out of scope for Phase 1 (per `ARCHITECTURE.md`'s
+non-goals — not gaps, deliberate boundaries):** voice, Bordio, WhatsApp,
+multi-user permissions, LLM-driven `IntentResolver`, attaching to
+manually-started interactive sessions, Postgres migration, microservices.
+
+**Known, documented limitations carried forward (not blockers):**
+- `ProcessDiscoveryService`'s POSIX path is unit-tested against fixture
+  output only — unverified on real macOS/Linux.
+- `ClaudeCodeAdapter`'s in-memory session maps grow for the life of the
+  daemon with no eviction (bounded by realistic single-user usage, not by
+  code — see `RISKS.md`, found during this page).
+- `DISCOVERY_POLL_INTERVAL_MS` is defined but unused — no periodic
+  re-discovery, only startup-time reconciliation (found during this
+  page, documented as a Phase 2 candidate).
+- No device/simulator testing of the mobile app anywhere in this
+  project — verified via `expo-doctor`, `tsc --noEmit`, and real Metro
+  bundle exports throughout, never an actual tap-through.
+- `npm audit`'s ~20 transitive-dependency findings remain untriaged.
+- Mobile app only works on the LAN (no tunnel/remote access) — explicit
+  Phase 1 non-goal, not a bug.
+
+**The one item genuinely outside my control:** git push access
+(`leadsprogress` account lacks push rights to `dattu145/ClaudeAssist`).
+Pages 10-21 (12 pages, dozens of commits) are complete, tested, and
+committed locally on `main`, waiting to be pushed once the user fixes
+the stored credential or grants access.
+
+**Previous milestone**: page20 implemented and verified (2026-09-10)
   — the typed command surface ADR-005 requires. Added `domain/command/
   types.ts` (the `Command` discriminated union: `SEND_INSTRUCTION`,
   `RESUME_SESSION`, `STOP_SESSION`, `CANCEL_TASK` — the mutating

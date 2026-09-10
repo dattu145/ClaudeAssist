@@ -290,3 +290,37 @@
   Typecheck/lint clean. Verified end-to-end with a real `startController()`
   run (not mocked): drove a real session through all four `CommandRouter`
   paths over actual HTTP (send instruction, resume, stop, cancel task).
+- Implemented page21: 24/7 hardening & reliability pass — the final
+  Phase 1 page. Audited every `Map`/`Set`/interval in `apps/controller/
+  src` for unbounded growth: found `ClaudeCodeAdapter`'s in-memory
+  session maps grow for the daemon's life with no safe eviction point
+  (no session-deletion endpoint exists, and every status is legitimately
+  resumable — documented as an accepted, usage-bounded tradeoff in
+  `RISKS.md` rather than "fixed" with a cache that would introduce a real
+  `SessionNotFoundError` bug), and that `DISCOVERY_POLL_INTERVAL_MS` is
+  defined but never wired to anything (no periodic re-discovery, only
+  startup-time reconciliation) — both documented in `RISKS.md`, not
+  silently left unexplained. Implemented log rotation
+  (`packages/logging/src/file-sink.ts`'s `createRotatingFileWriter` — a
+  minimal, dependency-free, size-based rotator, consistent with ADR-002/
+  ADR-004's zero-external-infra stance rather than adding a new npm
+  dependency), wired via new optional `LOG_FILE`/`LOG_MAX_FILE_BYTES`/
+  `LOG_MAX_FILES` config into `apps/controller/src/index.ts` (off by
+  default — unchanged stdout-only behavior otherwise). Added
+  `apps/controller/src/recovery.test.ts`, closing the `TEST_PLAN.md`
+  "Recovery" test layer gap that had existed since page1: two real
+  `startController()` instances sharing one on-disk database, the first
+  simulating a crash (a session left mid-flight on disk, no graceful
+  finalization), the second a genuinely fresh process — proving the
+  documented reconciliation algorithm end-to-end, not just at the
+  `Reconciler`-unit level `reconciler.test.ts` already covered. Finalized
+  `RISKS.md`, `packages/logging/src/rotation.md`, and added a Phase 1
+  close-out section to `PROGRESS.md`, checked against `ARCHITECTURE.md`/
+  `SECURITY.md`/`RISKS.md`/`TEST_PLAN.md` as the practical stand-in for
+  the original spec's Phase 1 Acceptance Criteria checklist (not
+  persisted verbatim anywhere in this repo — confirmed with the user
+  before finalizing this way). 335 tests passing, typecheck/lint clean.
+  Verified end-to-end: a real `startController()` instance writing to a
+  real file on real disk with a small byte threshold, generating traffic
+  via real HTTP requests, confirmed to actually rotate on disk — not just
+  asserted in-process. **Phase 1 is complete.**

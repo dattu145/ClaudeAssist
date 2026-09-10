@@ -10,6 +10,8 @@ describe("loadConfig", () => {
       LOG_LEVEL: "info",
       PAIRING_TOKEN_TTL: 2_592_000,
       DISCOVERY_POLL_INTERVAL_MS: 15_000,
+      LOG_MAX_FILE_BYTES: 10 * 1024 * 1024,
+      LOG_MAX_FILES: 5,
     });
   });
 
@@ -23,6 +25,13 @@ describe("loadConfig", () => {
     const config = loadConfig({ PORT: "8080", LOG_LEVEL: "debug" });
     expect(config.PORT).toBe(8080);
     expect(config.LOG_LEVEL).toBe("debug");
+  });
+
+  it("LOG_FILE is unset by default and accepted when provided", () => {
+    expect(loadConfig({}).LOG_FILE).toBeUndefined();
+    expect(loadConfig({ LOG_FILE: "/var/log/claudeops.log" }).LOG_FILE).toBe(
+      "/var/log/claudeops.log"
+    );
   });
 
   it("accepts PORT=0 (delegates to the OS for an ephemeral port)", () => {
