@@ -14,6 +14,7 @@ import { InProcessEventBus } from "../domain/events/bus.js";
 import { wireEventPersistence } from "../domain/events/wire-persistence.js";
 import { SqlitePairingRepository } from "../adapters/persistence/sqlite/pairing-repository.js";
 import { PairingRegistry } from "../domain/pairing/registry.js";
+import { CommandRouter } from "../domain/command/router.js";
 import { createApp } from "../server.js";
 
 export interface TestAppContext {
@@ -58,6 +59,7 @@ export async function buildTestApp(
   );
   const taskRegistry = new TaskRegistry(new SqliteTaskRepository(db), sessionRegistry, logger);
   const pairingRegistry = new PairingRegistry(new SqlitePairingRepository(db), logger, 2_592_000);
+  const commandRouter = new CommandRouter(sessionRegistry, taskRegistry);
 
   const app = createApp({
     db,
@@ -69,6 +71,7 @@ export async function buildTestApp(
     taskRegistry,
     eventRepository,
     pairingRegistry,
+    commandRouter,
   });
 
   const code = await pairingRegistry.issueStartupCode();

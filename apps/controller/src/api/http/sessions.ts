@@ -3,11 +3,13 @@ import { SendInstructionRequestSchema, StartSessionRequestSchema } from "@claude
 import type { SessionRegistry } from "../../domain/session/registry.js";
 import type { TaskRegistry } from "../../domain/task/registry.js";
 import type { EventRepository } from "../../domain/events/repository.js";
+import type { CommandRouter } from "../../domain/command/router.js";
 
 export function createSessionsRouter(
   sessionRegistry: SessionRegistry,
   taskRegistry: TaskRegistry,
-  eventRepository: EventRepository
+  eventRepository: EventRepository,
+  commandRouter: CommandRouter
 ): Router {
   const router = Router();
 
@@ -75,31 +77,29 @@ export function createSessionsRouter(
       res.status(400).json({ error: "invalid_request", issues: parsed.error.issues });
       return;
     }
-    taskRegistry
-      .dispatchInstruction(req.params.id as string, parsed.data.instruction)
+    commandRouter
+      .dispatch({ type: "SEND_INSTRUCTION", sessionId: req.params.id as string, instruction: parsed.data.instruction })
       .then((task) => res.status(201).json(task))
       .catch((err: unknown) => next(err));
   });
 
   router.post("/:id/resume", (req: Request, res: Response, next: NextFunction) => {
-    sessionRegistry
-      .resumeSession(req.params.id as string)
+    commandRouter
+      .dispatch({ type: "RESUME_SESSION", sessionId: req.params.id as string })
       .then((session) => res.json(session))
       .catch((err: unknown) => next(err));
   });
 
   router.post("/:id/stop", (req: Request, res: Response, next: NextFunction) => {
-    const sessionId = req.params.id as string;
-    sessionRegistry
-      .stopSession(sessionId)
-      .then(() => sessionRegistry.getSession(sessionId))
+    commandRouter
+      .dispatch({ type: "STOP_SESSION", sessionId: req.params.id as string })
       .then((session) => res.json(session))
       .catch((err: unknown) => next(err));
   });
 
   router.post("/:id/cancel", (req: Request, res: Response, next: NextFunction) => {
-    taskRegistry
-      .cancelLatestTaskForSession(req.params.id as string)
+    commandRouter
+      .dispatch({ type: "CANCEL_TASK", sessionId: req.params.id as string })
       .then((task) => res.json(task))
       .catch((err: unknown) => next(err));
   });

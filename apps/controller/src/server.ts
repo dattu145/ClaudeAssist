@@ -12,6 +12,7 @@ import type { SessionRegistry } from "./domain/session/registry.js";
 import type { TaskRegistry } from "./domain/task/registry.js";
 import type { EventRepository } from "./domain/events/repository.js";
 import type { PairingRegistry } from "./domain/pairing/registry.js";
+import type { CommandRouter } from "./domain/command/router.js";
 
 export interface AppDeps extends HealthDeps {
   logger: Logger;
@@ -20,6 +21,7 @@ export interface AppDeps extends HealthDeps {
   taskRegistry: TaskRegistry;
   eventRepository: EventRepository;
   pairingRegistry: PairingRegistry;
+  commandRouter: CommandRouter;
 }
 
 declare module "express-serve-static-core" {
@@ -54,7 +56,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/projects", createProjectsRouter(deps.projectRegistry));
   app.use(
     "/sessions",
-    createSessionsRouter(deps.sessionRegistry, deps.taskRegistry, deps.eventRepository)
+    createSessionsRouter(deps.sessionRegistry, deps.taskRegistry, deps.eventRepository, deps.commandRouter)
   );
 
   app.use((req: Request, res: Response) => {

@@ -267,3 +267,26 @@
   `queueInstructionOutcome`) to `SESSION_FAILED`, confirmed a real
   `notification: true` log line fired for each and that `SESSION_OUTPUT`
   produced none.
+- Implemented page20: CommandRouter/IntentResolver interfaces — the typed
+  command surface ADR-005 requires. `domain/command/types.ts` defines the
+  `Command` discriminated union (`SEND_INSTRUCTION`, `RESUME_SESSION`,
+  `STOP_SESSION`, `CANCEL_TASK` — the mutating session-level operations
+  ADR-005 names as the cross-source surface; `StartSession`/
+  `CreateProject` deliberately left as direct REST calls, a documented
+  scope decision). `domain/command/router.ts`'s `CommandRouter.dispatch()`
+  is a typed routing layer over the already-tested registry methods, no
+  new business logic. `domain/command/intent-resolver.ts` defines
+  `IntentResolver` as an interface only, per ADR-005's explicit "no
+  LLM-backed implementation ships in Phase 1". Landed under
+  `domain/command/`, matching the precedent reconciliation already set of
+  landing under `domain/` rather than `ARCHITECTURE.md`'s sketched
+  `orchestration/` tree. Actually wired in: `api/http/sessions.ts`'s four
+  mutating routes now build a `Command` and call
+  `commandRouter.dispatch()` instead of calling the registries directly —
+  proving the abstraction against today's only real command source
+  (mobile via REST) before voice ever needs it. 326 tests passing (+4
+  new), and all 15 pre-existing `sessions.test.ts` cases for these routes
+  passed unchanged — proof the reroute didn't shift behavior.
+  Typecheck/lint clean. Verified end-to-end with a real `startController()`
+  run (not mocked): drove a real session through all four `CommandRouter`
+  paths over actual HTTP (send instruction, resume, stop, cancel task).

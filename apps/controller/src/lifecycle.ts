@@ -17,6 +17,7 @@ import { InProcessEventBus } from "./domain/events/bus.js";
 import { wireEventPersistence } from "./domain/events/wire-persistence.js";
 import { wireNotifications } from "./domain/notification/wire-notifications.js";
 import { ConsoleNotificationService } from "./adapters/notification/console-notification-service.js";
+import { CommandRouter } from "./domain/command/router.js";
 import { attachWebSocketServer } from "./api/ws/server.js";
 import { SqlitePairingRepository } from "./adapters/persistence/sqlite/pairing-repository.js";
 import { PairingRegistry } from "./domain/pairing/registry.js";
@@ -84,6 +85,7 @@ export async function startController(
     sessionRegistry,
     logger.child({ component: "task-registry" })
   );
+  const commandRouter = new CommandRouter(sessionRegistry, taskRegistry);
 
   // Runs before the HTTP server starts accepting traffic (architecture/
   // controller.md) — persisted state must never lie about what's actually
@@ -115,6 +117,7 @@ export async function startController(
     taskRegistry,
     eventRepository,
     pairingRegistry,
+    commandRouter,
     getLastReconciliationAt: () => lastReconciliationAt,
     ...(overrides.checkClaudeCli ? { checkClaudeCli: overrides.checkClaudeCli } : {}),
   });

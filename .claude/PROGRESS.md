@@ -1,7 +1,8 @@
 # Progress
 
 **Current phase**: Phase 1
-**Current page**: page19 (NotificationService) — implemented and verified
+**Current page**: page20 (CommandRouter/IntentResolver interfaces) —
+  implemented and verified
 **Completed pages**: page1 (project foundation & monorepo skeleton), page2
   (packages/protocol & packages/config), page3 (packages/logging), page4
   (controller foundation), page5 (session state machine + domain entities),
@@ -12,21 +13,53 @@
   API), page14 (pairing & auth), page15 (ProcessDiscoveryService), page16
   (startup reconciliation), page17 (mobile foundation), page18 (mobile
   dashboard + real data), page19 (NotificationService + domain-event
-  wiring)
+  wiring), page20 (CommandRouter/IntentResolver interfaces)
 **Active work**: none
 **Blocked work**: **git push access** — `dattu145/ClaudeAssist` push is
   still failing with 403 (the stored HTTPS credential is tied to a
   different GitHub account than the repo owner; changing `git config
-  user.name` didn't fix it). Page10 through page19 commits are sitting
+  user.name` didn't fix it). Page10 through page20 commits are sitting
   locally on `main`, unpushed. User needs to fix the stored HTTPS
   credential (or grant push access) before the next push.
 **Known issues**: `npm install` reports ~20 pre-existing vulnerabilities in
   transitive deps (Expo scaffold + better-sqlite3 + expo-router's own
   deps) — not yet triaged; do not run `npm audit fix --force` without
   review, it can silently change majors.
-**Next action**: write `.claude/plans/page20.md` (CommandRouter/
-  IntentResolver interfaces), then implement it
-**Last completed milestone**: page19 implemented and verified (2026-09-10)
+**Next action**: write `.claude/plans/page21.md` (24/7 hardening &
+  reliability pass — the final Phase 1 page), then implement it
+**Last completed milestone**: page20 implemented and verified (2026-09-10)
+  — the typed command surface ADR-005 requires. Added `domain/command/
+  types.ts` (the `Command` discriminated union: `SEND_INSTRUCTION`,
+  `RESUME_SESSION`, `STOP_SESSION`, `CANCEL_TASK` — the mutating
+  session-level operations ADR-005 names as the cross-source surface,
+  scoped deliberately narrower than every REST endpoint; `StartSession`/
+  `CreateProject` stayed direct REST calls, documented as a scope decision
+  rather than made silently), `domain/command/router.ts`
+  (`CommandRouter.dispatch()` — a typed routing layer over the
+  already-tested registry methods, no new business logic), and
+  `domain/command/intent-resolver.ts` (the `IntentResolver` interface
+  only, per ADR-005's explicit "no LLM-backed implementation ships in
+  Phase 1"). Landed under `domain/command/`, matching the precedent
+  reconciliation already set of landing under `domain/` rather than
+  `ARCHITECTURE.md`'s sketched `orchestration/` tree.
+
+  Actually wired in, not left inert: `api/http/sessions.ts`'s four
+  mutating routes (`/instructions`, `/resume`, `/stop`, `/cancel`) now
+  build a `Command` and call `commandRouter.dispatch()` instead of
+  calling the registries directly — proving the abstraction against
+  today's only real command source (mobile via REST) before voice ever
+  needs it, per the roadmap's own framing of this page.
+
+  Verified: 326 tests passing (+4 new `CommandRouter` tests), and —
+  critically — all 15 pre-existing `sessions.test.ts` cases for these
+  four routes passed unchanged, proof the reroute didn't shift observable
+  behavior. Typecheck/lint clean. Real end-to-end manual check (`tsx`
+  against a live `startController()`, not mocked): drove a real session
+  through all four `CommandRouter` paths over actual HTTP — send an
+  instruction, resume, stop, and cancel a task — confirming each still
+  produces the correct result through the new dispatch path.
+
+**Previous milestone**: page19 implemented and verified (2026-09-10)
   — the third `EventBus` subscriber named in `architecture/event-system.md`
   (alongside `EventRepository` and the WS API), closing a documented gap
   since page10. Added `domain/notification/service.ts` (the

@@ -42,6 +42,7 @@
 - [ ] **User: fix stored HTTPS git credential** (not just `git config
       user.name` — that alone didn't fix the push) so `leadsprogress` isn't
       used, or grant it push access to `dattu145/ClaudeAssist`
-- [ ] Push page10 through page19 to origin/main once access is fixed
+- [ ] Push page10 through page20 to origin/main once access is fixed
 - [x] Write `.claude/plans/page19.md` and implement (NotificationService)
-- [ ] Write `.claude/plans/page20.md` and implement (CommandRouter/IntentResolver interfaces)
+- [x] Write `.claude/plans/page20.md` and implement (CommandRouter/IntentResolver interfaces)
+- [ ] Write `.claude/plans/page21.md` and implement (24/7 hardening & reliability pass — final Phase 1 page)
